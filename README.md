@@ -17,9 +17,15 @@ A jsonblob.com-style JSON storage service with a public CRUD API and an admin da
 
 2. **Create a Supabase project** at [supabase.com](https://supabase.com).
 
-3. **Connect the GitHub integration so migrations deploy automatically**: push this repo to GitHub, then in the Supabase dashboard go to **Project Settings > Integrations > GitHub**, connect your account, and select this repo with `main` as the production branch. This repo is already a Supabase CLI project (`supabase/config.toml` + `supabase/migrations/`), which is what the integration looks for. Connecting it runs `supabase/migrations/0001_init.sql` immediately, and every future migration file added under `supabase/migrations/` deploys automatically on push to `main` — no more pasting SQL into the dashboard by hand.
+3. **Apply the database migration** with the Supabase CLI. This repo is already a Supabase CLI project (`supabase/config.toml` + `supabase/migrations/`), so:
+   ```
+   npx supabase login                                    # opens your browser to authorize
+   npx supabase link --project-ref <your-project-ref>    # prompts for your DB password
+   npx supabase db push                                  # runs supabase/migrations/*.sql
+   ```
+   Your project ref is the subdomain of your project URL (e.g. `rjuccjrvcewaxottaurq` in `https://rjuccjrvcewaxottaurq.supabase.co`). The DB password is under Project Settings > Database (reset it there if you don't have it — it's separate from the API keys below). Add every future schema change as a new file under `supabase/migrations/` and re-run `npx supabase db push`.
 
-   (For local iteration you can also link the CLI directly — `npx supabase link --project-ref <ref>` then `npx supabase db push` — but once GitHub is connected, `main` is the source of truth.)
+   > Note: Supabase's dashboard **GitHub integration** is for preview branches on PRs, not automatic production migrations — connecting it does **not** run these migrations on push to `main`. `supabase db push` is the mechanism this project relies on.
 
 4. **Create the one admin account**: in the Supabase dashboard, go to Authentication > Users and manually create a user (email/password). There is no signup page in the app — this is the only account that can log into the dashboard. Disable public signups in Authentication > Settings.
 
@@ -66,4 +72,6 @@ Set these environment variables in the Vercel project settings (same values as `
 - `SUPABASE_SECRET_KEY` — server-only secret, bypasses RLS, never exposed to the browser.
 - `ADMIN_EMAIL` (optional) — restricts dashboard access to this exact Supabase Auth email even if another account somehow exists.
 
-Then push to the connected Git branch (or `vercel deploy`) — Next.js is auto-detected, no `vercel.json` needed. A push to `main` triggers both the Vercel deploy and, independently, the Supabase GitHub integration running any new migrations — schema and app ship together from one `git push`.
+Then push to the connected Git branch (or `vercel deploy`) — Next.js is auto-detected, no `vercel.json` needed.
+
+Database migrations are **not** tied to the Vercel deploy. When a change adds a new file under `supabase/migrations/`, apply it with `npx supabase db push` (see Setup step 3) — do this before or alongside the deploy that depends on the new schema.
