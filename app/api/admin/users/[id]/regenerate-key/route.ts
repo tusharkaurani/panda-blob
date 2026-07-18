@@ -1,0 +1,28 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseServer } from "@/lib/supabase-server";
+import { generateAccessKey } from "@/lib/api-key";
+import { isValidUUID } from "@/lib/validation";
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+  }
+
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("api_users")
+    .update({ access_key: generateAccessKey() })
+    .eq("id", id)
+    .select("id, access_key")
+    .maybeSingle();
+
+  if (error || !data) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(data);
+}
