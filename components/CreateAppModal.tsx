@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import {
@@ -15,43 +15,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function RenameUserModal({
+export function CreateAppModal({
   open,
   onClose,
-  userId,
-  currentName,
-  onRenamed,
+  onCreated,
 }: {
   open: boolean;
   onClose: () => void;
-  userId: string;
-  currentName: string;
-  onRenamed: () => void;
+  onCreated: () => void;
 }) {
-  const [name, setName] = useState(currentName);
+  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setName(currentName);
-      setError(null);
-    }
-  }, [open, currentName]);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
-    if (name.trim() === currentName) {
-      onClose();
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
-    const res = await fetch(`/api/admin/users/${userId}`, {
-      method: "PATCH",
+    const res = await fetch("/api/admin/apps", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
@@ -60,13 +43,14 @@ export function RenameUserModal({
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Failed to rename user");
+      setError(body.error ?? "Failed to create app");
       return;
     }
 
-    onRenamed();
+    setName("");
+    onCreated();
     onClose();
-    toast.success("User renamed");
+    toast.success(`Created app "${name}"`);
   }
 
   return (
@@ -74,18 +58,21 @@ export function RenameUserModal({
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Rename user</DialogTitle>
-            <DialogDescription>Update this user&apos;s display name.</DialogDescription>
+            <DialogTitle>Create app</DialogTitle>
+            <DialogDescription>
+              A new app with an auto-generated access key.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-1.5 py-2">
-            <Label htmlFor="rename-user-name">Name</Label>
+            <Label htmlFor="app-name">Name</Label>
             <Input
-              id="rename-user-name"
+              id="app-name"
               required
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. project-foo"
             />
           </div>
 
@@ -95,9 +82,9 @@ export function RenameUserModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !name.trim()}>
+            <Button type="submit" disabled={loading}>
               {loading && <Loader2Icon className="size-4 animate-spin" />}
-              {loading ? "Saving..." : "Save"}
+              {loading ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
         </form>

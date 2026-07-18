@@ -6,21 +6,21 @@ export function generateAccessKey(): string {
   return `pb_${randomBytes(32).toString("base64url")}`;
 }
 
-export type ApiUser = {
+export type App = {
   id: string;
   name: string;
   is_active: boolean;
 };
 
-export async function lookupUserByKey(accessKey: string): Promise<ApiUser | null> {
+export async function lookupAppByKey(accessKey: string): Promise<App | null> {
   const supabase = supabaseServer();
   const { data, error } = await supabase
-    .from("api_users")
+    .from("apps")
     .select("id, name, is_active")
     .eq("access_key", accessKey)
     .eq("is_active", true)
     .maybeSingle();
 
   if (error || !data) return null;
-  return data as ApiUser;
+  return data as App;
 }

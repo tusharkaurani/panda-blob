@@ -49,7 +49,7 @@ export function CreateBlobModal({
     if (!open || !pickOwner) return;
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/admin/users?page=1&limit=1000");
+      const res = await fetch("/api/admin/apps?page=1&limit=1000");
       const body = await res.json().catch(() => ({}));
       if (cancelled) return;
       const items: OwnerOption[] = (body.items ?? []).map((u: OwnerOption) => ({
@@ -69,7 +69,7 @@ export function CreateBlobModal({
 
     const effectiveOwner = pickOwner ? selectedOwner : ownerId;
     if (!effectiveOwner) {
-      setError("Select an owner");
+      setError("Select an app");
       return;
     }
 
@@ -85,7 +85,7 @@ export function CreateBlobModal({
     const res = await fetch("/api/admin/blobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner_id: effectiveOwner, data }),
+      body: JSON.stringify({ app_id: effectiveOwner, data }),
     });
     setLoading(false);
 
@@ -113,10 +113,10 @@ export function CreateBlobModal({
 
           {pickOwner && (
             <div className="space-y-1.5">
-              <Label htmlFor="blob-owner">Owner</Label>
+              <Label htmlFor="blob-owner">App</Label>
               <Select value={selectedOwner} onValueChange={(v) => setSelectedOwner(v ?? "")}>
                 <SelectTrigger id="blob-owner" className="w-full">
-                  <SelectValue placeholder="Select a user…" />
+                  <SelectValue placeholder="Select an app…" />
                 </SelectTrigger>
                 <SelectContent>
                   {owners.map((o) => (

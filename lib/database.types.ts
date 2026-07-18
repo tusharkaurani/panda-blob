@@ -1,7 +1,7 @@
 export type Database = {
   public: {
     Tables: {
-      api_users: {
+      apps: {
         Row: {
           id: string;
           name: string;
@@ -31,31 +31,31 @@ export type Database = {
       blobs: {
         Row: {
           id: string;
-          owner_id: string;
+          app_id: string;
           data: unknown;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          owner_id: string;
+          app_id: string;
           data: unknown;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          owner_id?: string;
+          app_id?: string;
           data?: unknown;
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "blobs_owner_id_fkey";
-            columns: ["owner_id"];
+            foreignKeyName: "blobs_app_id_fkey";
+            columns: ["app_id"];
             isOneToOne: false;
-            referencedRelation: "api_users";
+            referencedRelation: "apps";
             referencedColumns: ["id"];
           },
         ];

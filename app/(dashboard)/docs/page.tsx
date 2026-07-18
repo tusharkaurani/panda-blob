@@ -77,14 +77,14 @@ export default function ApiDocsPage() {
       <section className="space-y-3 rounded-xl border border-border bg-card p-5">
         <h2 className="text-base font-semibold tracking-tight">Authentication</h2>
         <p className="text-sm text-muted-foreground">
-          Every request must carry a User&apos;s access key as an{" "}
+          Every request must carry an App&apos;s access key as an{" "}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">apiKey</code> query
           parameter. Get a key from the{" "}
-          <a href="/users" className="underline hover:text-foreground">
-            Users
+          <a href="/apps" className="underline hover:text-foreground">
+            Apps
           </a>{" "}
-          page. A blob can only be read or written with its own owner&apos;s key — no key, wrong
-          key, or a disabled user&apos;s key is rejected.
+          page. A blob can only be read or written with its own app&apos;s key — no key, wrong
+          key, or a disabled app&apos;s key is rejected.
         </p>
         <div className="space-y-1">
           <p className="text-sm font-medium">Base URL</p>
@@ -129,7 +129,7 @@ export default function ApiDocsPage() {
             <TableRow>
               <TableCell className="font-mono text-xs">404</TableCell>
               <TableCell className="text-muted-foreground">
-                Blob doesn&apos;t exist, or belongs to a different user (indistinguishable on purpose).
+                Blob doesn&apos;t exist, or belongs to a different app (indistinguishable on purpose).
               </TableCell>
             </TableRow>
             <TableRow>

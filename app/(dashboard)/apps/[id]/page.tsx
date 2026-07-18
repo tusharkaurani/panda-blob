@@ -28,10 +28,10 @@ import {
 import { Pagination } from "@/components/ui/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CreateBlobModal } from "@/components/CreateBlobModal";
-import { RenameUserModal } from "@/components/RenameUserModal";
+import { RenameAppModal } from "@/components/RenameAppModal";
 import { BlobIdCell } from "@/components/BlobIdCell";
 
-type UserDetail = {
+type AppDetail = {
   id: string;
   name: string;
   access_key: string;
@@ -46,10 +46,10 @@ type BlobRow = {
   updated_at: string;
 };
 
-export default function UserDetailPage() {
+export default function AppDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [user, setUser] = useState<UserDetail | null>(null);
+  const [app, setApp] = useState<AppDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [blobs, setBlobs] = useState<BlobRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,25 +57,25 @@ export default function UserDetailPage() {
   const [blobsLoading, setBlobsLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [deleteUserOpen, setDeleteUserOpen] = useState(false);
+  const [deleteAppOpen, setDeleteAppOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [deleteBlobId, setDeleteBlobId] = useState<string | null>(null);
   const limit = 10;
 
-  const loadUser = useCallback(async () => {
-    const res = await fetch(`/api/admin/users/${id}`);
+  const loadApp = useCallback(async () => {
+    const res = await fetch(`/api/admin/apps/${id}`);
     if (!res.ok) {
       setNotFound(true);
       return;
     }
-    setUser(await res.json());
+    setApp(await res.json());
   }, [id]);
 
   const loadBlobs = useCallback(async () => {
     setBlobsLoading(true);
     const params = new URLSearchParams({
-      owner_id: id,
+      app_id: id,
       page: String(page),
       limit: String(limit),
     });
@@ -87,37 +87,37 @@ export default function UserDetailPage() {
   }, [id, page]);
 
   useEffect(() => {
-    loadUser();
-  }, [loadUser]);
+    loadApp();
+  }, [loadApp]);
 
   useEffect(() => {
     loadBlobs();
   }, [loadBlobs]);
 
   async function handleToggleActive() {
-    if (!user) return;
-    await fetch(`/api/admin/users/${user.id}`, {
+    if (!app) return;
+    await fetch(`/api/admin/apps/${app.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: !user.is_active }),
+      body: JSON.stringify({ is_active: !app.is_active }),
     });
-    toast.success(user.is_active ? "User disabled" : "User enabled");
-    loadUser();
+    toast.success(app.is_active ? "App disabled" : "App enabled");
+    loadApp();
   }
 
   async function handleRegenerate() {
-    if (!user) return;
-    await fetch(`/api/admin/users/${user.id}/regenerate-key`, { method: "POST" });
+    if (!app) return;
+    await fetch(`/api/admin/apps/${app.id}/regenerate-key`, { method: "POST" });
     toast.success("Access key regenerated");
     setRegenerateOpen(false);
-    loadUser();
+    loadApp();
   }
 
-  async function handleDeleteUser() {
-    if (!user) return;
-    await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
-    toast.success(`Deleted "${user.name}"`);
-    router.push("/users");
+  async function handleDeleteApp() {
+    if (!app) return;
+    await fetch(`/api/admin/apps/${app.id}`, { method: "DELETE" });
+    toast.success(`Deleted "${app.name}"`);
+    router.push("/apps");
   }
 
   async function handleDeleteBlob() {
@@ -126,21 +126,21 @@ export default function UserDetailPage() {
     toast.success("Blob deleted");
     setDeleteBlobId(null);
     loadBlobs();
-    loadUser();
+    loadApp();
   }
 
   function handleCopy() {
-    if (!user) return;
-    navigator.clipboard.writeText(user.access_key);
+    if (!app) return;
+    navigator.clipboard.writeText(app.access_key);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
   if (notFound) {
-    return <p className="text-sm text-muted-foreground">User not found.</p>;
+    return <p className="text-sm text-muted-foreground">App not found.</p>;
   }
 
-  if (!user) {
+  if (!app) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-4 w-16" />
@@ -154,11 +154,11 @@ export default function UserDetailPage() {
     <div className="space-y-6">
       <div>
         <Link
-          href="/users"
+          href="/apps"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
         >
           <ArrowLeftIcon className="size-3.5" />
-          Users
+          Apps
         </Link>
       </div>
 
@@ -166,23 +166,23 @@ export default function UserDetailPage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-lg font-semibold tracking-tight">{user.name}</h1>
+              <h1 className="text-lg font-semibold tracking-tight">{app.name}</h1>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Rename user"
-                title="Rename user"
+                aria-label="Rename app"
+                title="Rename app"
                 onClick={() => setRenameOpen(true)}
               >
                 <PencilIcon className="size-3.5" />
               </Button>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Created {new Date(user.created_at).toLocaleString()} · {user.blob_count} blob
-              {user.blob_count === 1 ? "" : "s"}
+              Created {new Date(app.created_at).toLocaleString()} · {app.blob_count} blob
+              {app.blob_count === 1 ? "" : "s"}
             </p>
           </div>
-          <StatusBadge active={user.is_active} />
+          <StatusBadge active={app.is_active} />
         </div>
 
         <div className="mt-4 flex items-center gap-2">
@@ -197,7 +197,7 @@ export default function UserDetailPage() {
               </>
             ) : (
               <>
-                <CopyIcon className="size-3" /> {user.access_key}
+                <CopyIcon className="size-3" /> {app.access_key}
               </>
             )}
           </button>
@@ -205,13 +205,13 @@ export default function UserDetailPage() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleToggleActive}>
-            {user.is_active ? "Disable" : "Enable"}
+            {app.is_active ? "Disable" : "Enable"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setRegenerateOpen(true)}>
             Regenerate key
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteUserOpen(true)}>
-            Delete user
+          <Button variant="destructive" size="sm" onClick={() => setDeleteAppOpen(true)}>
+            Delete app
           </Button>
         </div>
       </div>
@@ -257,7 +257,7 @@ export default function UserDetailPage() {
                 blobs.map((blob) => (
                   <TableRow key={blob.id}>
                     <TableCell>
-                      <BlobIdCell id={blob.id} ownerAccessKey={user.access_key} />
+                      <BlobIdCell id={blob.id} ownerAccessKey={app.access_key} />
                     </TableCell>
                     <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">
                       {JSON.stringify(blob.data)}
@@ -287,19 +287,19 @@ export default function UserDetailPage() {
       <CreateBlobModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        ownerId={user.id}
+        ownerId={app.id}
         onCreated={() => {
           loadBlobs();
-          loadUser();
+          loadApp();
         }}
       />
 
-      <RenameUserModal
+      <RenameAppModal
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
-        userId={user.id}
-        currentName={user.name}
-        onRenamed={loadUser}
+        appId={app.id}
+        currentName={app.name}
+        onRenamed={loadApp}
       />
 
       <AlertDialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
@@ -317,19 +317,19 @@ export default function UserDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteUserOpen} onOpenChange={setDeleteUserOpen}>
+      <AlertDialog open={deleteAppOpen} onOpenChange={setDeleteAppOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this app?</AlertDialogTitle>
             <AlertDialogDescription>
-              This deletes &quot;{user.name}&quot; and all {user.blob_count} of its blobs. This
+              This deletes &quot;{app.name}&quot; and all {app.blob_count} of its blobs. This
               cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteUser}
+              onClick={handleDeleteApp}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete

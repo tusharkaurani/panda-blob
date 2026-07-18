@@ -33,10 +33,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Pagination } from "@/components/ui/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
-import { CreateUserModal } from "@/components/CreateUserModal";
-import { RenameUserModal } from "@/components/RenameUserModal";
+import { CreateAppModal } from "@/components/CreateAppModal";
+import { RenameAppModal } from "@/components/RenameAppModal";
 
-type ApiUserRow = {
+type AppRow = {
   id: string;
   name: string;
   access_key: string;
@@ -45,24 +45,24 @@ type ApiUserRow = {
   blob_count: number;
 };
 
-export default function UsersPage() {
-  const [items, setItems] = useState<ApiUserRow[]>([]);
+export default function AppsPage() {
+  const [items, setItems] = useState<AppRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ApiUserRow | null>(null);
-  const [regenerateTarget, setRegenerateTarget] = useState<ApiUserRow | null>(null);
-  const [renameTarget, setRenameTarget] = useState<ApiUserRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppRow | null>(null);
+  const [regenerateTarget, setRegenerateTarget] = useState<AppRow | null>(null);
+  const [renameTarget, setRenameTarget] = useState<AppRow | null>(null);
   const limit = 10;
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
-    const res = await fetch(`/api/admin/users?${params}`);
+    const res = await fetch(`/api/admin/apps?${params}`);
     const body = await res.json();
     setItems(body.items ?? []);
     setTotal(body.total ?? 0);
@@ -73,19 +73,19 @@ export default function UsersPage() {
     load();
   }, [load]);
 
-  async function handleToggleActive(user: ApiUserRow) {
-    await fetch(`/api/admin/users/${user.id}`, {
+  async function handleToggleActive(app: AppRow) {
+    await fetch(`/api/admin/apps/${app.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: !user.is_active }),
+      body: JSON.stringify({ is_active: !app.is_active }),
     });
-    toast.success(user.is_active ? `Disabled "${user.name}"` : `Enabled "${user.name}"`);
+    toast.success(app.is_active ? `Disabled "${app.name}"` : `Enabled "${app.name}"`);
     load();
   }
 
   async function handleRegenerate() {
     if (!regenerateTarget) return;
-    await fetch(`/api/admin/users/${regenerateTarget.id}/regenerate-key`, { method: "POST" });
+    await fetch(`/api/admin/apps/${regenerateTarget.id}/regenerate-key`, { method: "POST" });
     toast.success(`Regenerated access key for "${regenerateTarget.name}"`);
     setRegenerateTarget(null);
     load();
@@ -93,28 +93,28 @@ export default function UsersPage() {
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    await fetch(`/api/admin/users/${deleteTarget.id}`, { method: "DELETE" });
+    await fetch(`/api/admin/apps/${deleteTarget.id}`, { method: "DELETE" });
     toast.success(`Deleted "${deleteTarget.name}"`);
     setDeleteTarget(null);
     load();
   }
 
-  function handleCopy(user: ApiUserRow) {
-    navigator.clipboard.writeText(user.access_key);
-    setCopiedId(user.id);
-    setTimeout(() => setCopiedId((id) => (id === user.id ? null : id)), 1500);
+  function handleCopy(app: AppRow) {
+    navigator.clipboard.writeText(app.access_key);
+    setCopiedId(app.id);
+    setTimeout(() => setCopiedId((id) => (id === app.id ? null : id)), 1500);
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">API consumer accounts and their access keys.</p>
+          <h1 className="text-xl font-semibold tracking-tight">Apps</h1>
+          <p className="text-sm text-muted-foreground">Apps and their access keys.</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <PlusIcon className="size-4" />
-          Create user
+          Create app
         </Button>
       </div>
 
@@ -157,41 +157,41 @@ export default function UsersPage() {
             {!loading && items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                  No users yet.
+                  No apps yet.
                 </TableCell>
               </TableRow>
             )}
             {!loading &&
-              items.map((user) => (
-                <TableRow key={user.id}>
+              items.map((app) => (
+                <TableRow key={app.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/users/${user.id}`} className="hover:underline">
-                      {user.name}
+                    <Link href={`/apps/${app.id}`} className="hover:underline">
+                      {app.name}
                     </Link>
                   </TableCell>
                   <TableCell>
                     <button
-                      onClick={() => handleCopy(user)}
+                      onClick={() => handleCopy(app)}
                       className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/70"
                       title="Copy access key"
                     >
-                      {copiedId === user.id ? (
+                      {copiedId === app.id ? (
                         <>
                           <CheckIcon className="size-3" /> Copied
                         </>
                       ) : (
                         <>
-                          <CopyIcon className="size-3" /> {user.access_key}
+                          <CopyIcon className="size-3" /> {app.access_key}
                         </>
                       )}
                     </button>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge active={user.is_active} />
+                    <StatusBadge active={app.is_active} />
                   </TableCell>
-                  <TableCell className="tabular-nums">{user.blob_count}</TableCell>
+                  <TableCell className="tabular-nums">{app.blob_count}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {new Date(app.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -203,18 +203,18 @@ export default function UsersPage() {
                         <MoreHorizontalIcon className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setRenameTarget(user)}>
+                        <DropdownMenuItem onClick={() => setRenameTarget(app)}>
                           Rename
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleToggleActive(user)}>
-                          {user.is_active ? "Disable" : "Enable"}
+                        <DropdownMenuItem onClick={() => handleToggleActive(app)}>
+                          {app.is_active ? "Disable" : "Enable"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setRegenerateTarget(user)}>
+                        <DropdownMenuItem onClick={() => setRegenerateTarget(app)}>
                           Regenerate key
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
-                          onClick={() => setDeleteTarget(user)}
+                          onClick={() => setDeleteTarget(app)}
                         >
                           Delete
                         </DropdownMenuItem>
@@ -229,12 +229,12 @@ export default function UsersPage() {
 
       <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
 
-      <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
+      <CreateAppModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
 
-      <RenameUserModal
+      <RenameAppModal
         open={renameTarget !== null}
         onClose={() => setRenameTarget(null)}
-        userId={renameTarget?.id ?? ""}
+        appId={renameTarget?.id ?? ""}
         currentName={renameTarget?.name ?? ""}
         onRenamed={load}
       />
@@ -260,7 +260,7 @@ export default function UsersPage() {
       <AlertDialog open={deleteTarget !== null} onOpenChange={(next) => !next && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this app?</AlertDialogTitle>
             <AlertDialogDescription>
               This deletes &quot;{deleteTarget?.name}&quot; and all {deleteTarget?.blob_count}{" "}
               of its blobs. This cannot be undone.

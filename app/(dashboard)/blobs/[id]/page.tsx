@@ -21,9 +21,9 @@ import { JsonEditor } from "@/components/JsonEditor";
 
 type BlobDetail = {
   id: string;
-  owner_id: string;
-  owner_name: string | null;
-  owner_access_key: string | null;
+  app_id: string;
+  app_name: string | null;
+  app_access_key: string | null;
   data: unknown;
   created_at: string;
   updated_at: string;
@@ -105,8 +105,8 @@ export default function BlobEditorPage() {
   }
 
   function handleCopyFetchUrl() {
-    if (!blob || !blob.owner_access_key) return;
-    const url = `${window.location.origin}/api/blob/${blob.id}?apiKey=${blob.owner_access_key}`;
+    if (!blob || !blob.app_access_key) return;
+    const url = `${window.location.origin}/api/blob/${blob.id}?apiKey=${blob.app_access_key}`;
     navigator.clipboard.writeText(url);
     setCopiedUrl(true);
     toast.success("Fetch URL copied");
@@ -156,17 +156,17 @@ export default function BlobEditorPage() {
               variant="ghost"
               size="icon-sm"
               aria-label="Copy fetch URL"
-              title="Copy fetch URL (GET, with this owner's API key)"
+              title="Copy fetch URL (GET, with this app's API key)"
               onClick={handleCopyFetchUrl}
-              disabled={!blob.owner_access_key}
+              disabled={!blob.app_access_key}
             >
               {copiedUrl ? <CheckIcon className="size-3.5" /> : <LinkIcon className="size-3.5" />}
             </Button>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Owner:{" "}
-            <Link href={`/users/${blob.owner_id}`} className="hover:underline">
-              {blob.owner_name ?? blob.owner_id}
+            App:{" "}
+            <Link href={`/apps/${blob.app_id}`} className="hover:underline">
+              {blob.app_name ?? blob.app_id}
             </Link>{" "}
             · Updated {new Date(blob.updated_at).toLocaleString()}
           </p>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "./fake-supabase-server";
-import { makeApiUser, makeBlob } from "./fixtures";
+import { makeApp, makeBlob } from "./fixtures";
 
 describe("fake supabase server", () => {
   let fake: FakeSupabaseServer;
@@ -11,7 +11,7 @@ describe("fake supabase server", () => {
 
   it("inserts and reads back a row via maybeSingle", async () => {
     const { data, error } = await fake
-      .from("api_users")
+      .from("apps")
       .insert({ name: "alice", access_key: "pb_abc" })
       .select("id, name, access_key")
       .single();
@@ -20,7 +20,7 @@ describe("fake supabase server", () => {
     expect(data.name).toBe("alice");
 
     const { data: found } = await fake
-      .from("api_users")
+      .from("apps")
       .select("id, name")
       .eq("id", data.id)
       .maybeSingle();
@@ -28,10 +28,10 @@ describe("fake supabase server", () => {
   });
 
   it("computes count from the full filtered set, before range slicing", async () => {
-    const user = makeApiUser();
-    fake.__state.api_users.push(user);
+    const user = makeApp();
+    fake.__state.apps.push(user);
     for (let i = 0; i < 25; i++) {
-      fake.__state.blobs.push(makeBlob({ owner_id: user.id }));
+      fake.__state.blobs.push(makeBlob({ app_id: user.id }));
     }
 
     const { data, count } = await fake
@@ -44,27 +44,27 @@ describe("fake supabase server", () => {
     expect(data).toHaveLength(10);
   });
 
-  it("resolves the api_users(name, access_key) embed on blobs", async () => {
-    const user = makeApiUser({ name: "bob" });
-    fake.__state.api_users.push(user);
-    fake.__state.blobs.push(makeBlob({ owner_id: user.id }));
+  it("resolves the apps(name, access_key) embed on blobs", async () => {
+    const user = makeApp({ name: "bob" });
+    fake.__state.apps.push(user);
+    fake.__state.blobs.push(makeBlob({ app_id: user.id }));
 
     const { data } = await fake
       .from("blobs")
-      .select("id, owner_id, api_users(name, access_key)")
-      .eq("owner_id", user.id)
+      .select("id, app_id, apps(name, access_key)")
+      .eq("app_id", user.id)
       .maybeSingle();
 
-    expect(data.api_users).toEqual({ name: "bob", access_key: user.access_key });
+    expect(data.apps).toEqual({ name: "bob", access_key: user.access_key });
   });
 
-  it("resolves the blobs(count) aggregate embed on api_users, including zero", async () => {
-    const withBlobs = makeApiUser();
-    const withoutBlobs = makeApiUser();
-    fake.__state.api_users.push(withBlobs, withoutBlobs);
-    fake.__state.blobs.push(makeBlob({ owner_id: withBlobs.id }), makeBlob({ owner_id: withBlobs.id }));
+  it("resolves the blobs(count) aggregate embed on apps, including zero", async () => {
+    const withBlobs = makeApp();
+    const withoutBlobs = makeApp();
+    fake.__state.apps.push(withBlobs, withoutBlobs);
+    fake.__state.blobs.push(makeBlob({ app_id: withBlobs.id }), makeBlob({ app_id: withBlobs.id }));
 
-    const { data } = await fake.from("api_users").select("id, blobs(count)").order("created_at", {
+    const { data } = await fake.from("apps").select("id, blobs(count)").order("created_at", {
       ascending: true,
     });
 
@@ -74,26 +74,26 @@ describe("fake supabase server", () => {
   });
 
   it("filters by embedded resource via dot-notation ilike (!inner search)", async () => {
-    const match = makeApiUser({ name: "project-foo" });
-    const noMatch = makeApiUser({ name: "something-else" });
-    fake.__state.api_users.push(match, noMatch);
-    fake.__state.blobs.push(makeBlob({ owner_id: match.id }), makeBlob({ owner_id: noMatch.id }));
+    const match = makeApp({ name: "project-foo" });
+    const noMatch = makeApp({ name: "something-else" });
+    fake.__state.apps.push(match, noMatch);
+    fake.__state.blobs.push(makeBlob({ app_id: match.id }), makeBlob({ app_id: noMatch.id }));
 
     const { data, count } = await fake
       .from("blobs")
-      .select("id, owner_id, api_users!inner(name)", { count: "exact" })
-      .ilike("api_users.name", "%foo%");
+      .select("id, app_id, apps!inner(name)", { count: "exact" })
+      .ilike("apps.name", "%foo%");
 
     const rows = data as any[];
     expect(count).toBe(1);
     expect(rows).toHaveLength(1);
-    expect(rows[0].owner_id).toBe(match.id);
+    expect(rows[0].app_id).toBe(match.id);
   });
 
-  it("rejects blob insert with a nonexistent owner_id (FK violation)", async () => {
+  it("rejects blob insert with a nonexistent app_id (FK violation)", async () => {
     const { data, error } = await fake
       .from("blobs")
-      .insert({ owner_id: "00000000-0000-0000-0000-000000000000", data: {} })
+      .insert({ app_id: "00000000-0000-0000-0000-000000000000", data: {} })
       .select("id")
       .single();
 
@@ -102,11 +102,11 @@ describe("fake supabase server", () => {
   });
 
   it("cascade-deletes blobs when their owner is deleted", async () => {
-    const user = makeApiUser();
-    fake.__state.api_users.push(user);
-    fake.__state.blobs.push(makeBlob({ owner_id: user.id }), makeBlob({ owner_id: user.id }));
+    const user = makeApp();
+    fake.__state.apps.push(user);
+    fake.__state.blobs.push(makeBlob({ app_id: user.id }), makeBlob({ app_id: user.id }));
 
-    const { count } = await fake.from("api_users").delete({ count: "exact" }).eq("id", user.id);
+    const { count } = await fake.from("apps").delete({ count: "exact" }).eq("id", user.id);
 
     expect(count).toBe(1);
     expect(fake.__state.blobs).toHaveLength(0);
@@ -133,10 +133,10 @@ describe("fake supabase server", () => {
   });
 
   it("head:true returns null data but a real count", async () => {
-    fake.__state.api_users.push(makeApiUser(), makeApiUser());
+    fake.__state.apps.push(makeApp(), makeApp());
 
     const { data, count, error } = await fake
-      .from("api_users")
+      .from("apps")
       .select("*", { count: "exact", head: true });
 
     expect(error).toBeNull();

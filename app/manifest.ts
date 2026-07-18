@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "pandablob Admin",
     short_name: "pandablob",
     description: "Admin console for the pandablob JSON storage service",
-    start_url: "/users",
+    start_url: "/apps",
     scope: "/",
     display: "standalone",
     background_color: "#ffffff",

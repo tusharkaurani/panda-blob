@@ -12,18 +12,18 @@ export async function GET(
 
   const { id } = await params;
   if (!isValidUUID(id)) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid app id" }, { status: 400 });
   }
 
   const supabase = supabaseServer();
   const { data, error } = await supabase
-    .from("api_users")
+    .from("apps")
     .select("id, name, access_key, is_active, created_at, updated_at, blobs(count)")
     .eq("id", id)
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ error: "App not found" }, { status: 404 });
   }
 
   const row = data as any;
@@ -47,7 +47,7 @@ export async function PATCH(
 
   const { id } = await params;
   if (!isValidUUID(id)) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid app id" }, { status: 400 });
   }
 
   let body: { name?: string; is_active?: boolean };
@@ -67,14 +67,14 @@ export async function PATCH(
 
   const supabase = supabaseServer();
   const { data, error } = await supabase
-    .from("api_users")
+    .from("apps")
     .update(update)
     .eq("id", id)
     .select("id, name, access_key, is_active, created_at, updated_at")
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ error: "App not found" }, { status: 404 });
   }
 
   return NextResponse.json(data);
@@ -89,20 +89,20 @@ export async function DELETE(
 
   const { id } = await params;
   if (!isValidUUID(id)) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid app id" }, { status: 400 });
   }
 
   const supabase = supabaseServer();
   const { error, count } = await supabase
-    .from("api_users")
+    .from("apps")
     .delete({ count: "exact" })
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete app" }, { status: 500 });
   }
   if (!count) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ error: "App not found" }, { status: 404 });
   }
 
   return new NextResponse(null, { status: 204 });

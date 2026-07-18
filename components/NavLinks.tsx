@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const LINKS = [
-  { href: "/users", label: "Users" },
+  { href: "/apps", label: "Apps" },
   { href: "/blobs", label: "Blobs" },
   { href: "/docs", label: "API Docs" },
 ];

@@ -6,17 +6,17 @@ A [jsonblob.com](https://jsonblob.com)-style JSON storage service: a public CRUD
 
 There are three concepts:
 
-- **Users** — API consumer accounts (e.g. `project-foo`), one per project/service that stores blobs. Created *only* from the admin dashboard; there is no self-serve signup. Each User has an auto-generated **access key**.
-- **Blobs** — arbitrary JSON documents. Every blob belongs to exactly one User.
-- **Admin** — you. Logs into the dashboard to create Users, hand out access keys, and browse/edit blobs.
+- **Apps** — API consumer accounts (e.g. `project-foo`), one per project/service that stores blobs. Created *only* from the admin dashboard; there is no self-serve signup. Each App has an auto-generated **access key**.
+- **Blobs** — arbitrary JSON documents. Every blob belongs to exactly one App.
+- **Admin** — you. Logs into the dashboard to create Apps, hand out access keys, and browse/edit blobs.
 
 So there are two completely separate kinds of "auth" in this app, described next.
 
 ## Authentication
 
-### 1. Public API — per-User access keys
+### 1. Public API — per-App access keys
 
-Every call to the public blob API must carry a User's access key as a query param (`?apiKey=<key>`). The key identifies the owning User, and a blob can only be read or written with *its own owner's* key. No key, wrong key, or a disabled User's key → rejected. Keys are created, viewed, and regenerated from the admin dashboard.
+Every call to the public blob API must carry an App's access key as a query param (`?apiKey=<key>`). The key identifies the owning App, and a blob can only be read or written with *its own owner's* key. No key, wrong key, or a disabled App's key → rejected. Keys are created, viewed, and regenerated from the admin dashboard.
 
 Keys are stored in plaintext in the database (the admin needs to view them persistently, which rules out hashing). They're safe because they're high-entropy (`pb_` + 32 random bytes) and the table holding them is never exposed to the browser — only server-side code using the secret key touches it.
 
@@ -37,7 +37,7 @@ The dashboard is gated by **Supabase Auth**. We don't build any login logic ours
 
 ### Row-Level Security
 
-Both tables (`api_users`, `blobs`) have RLS enabled with **no policies** (default-deny). All app access goes through the server-side client using the **secret key**, which bypasses RLS by design. RLS is a backstop: if the publishable key were ever pointed at these tables, it gets zero rows.
+Both tables (`apps`, `blobs`) have RLS enabled with **no policies** (default-deny). All app access goes through the server-side client using the **secret key**, which bypasses RLS by design. RLS is a backstop: if the publishable key were ever pointed at these tables, it gets zero rows.
 
 ## Setup
 
@@ -77,11 +77,11 @@ Both tables (`api_users`, `blobs`) have RLS enabled with **no policies** (defaul
    ```
    npm run dev
    ```
-   Visit `http://localhost:3000`. It redirects to `/users`, which redirects to `/login` until you sign in with the admin account from step 4.
+   Visit `http://localhost:3000`. It redirects to `/apps`, which redirects to `/login` until you sign in with the admin account from step 4.
 
 ## Public API
 
-Base path `/api/blob`. Every request needs the owning User's access key as an `apiKey` query param.
+Base path `/api/blob`. Every request needs the owning App's access key as an `apiKey` query param.
 
 | Method | Path | Behavior |
 |---|---|---|
@@ -90,7 +90,7 @@ Base path `/api/blob`. Every request needs the owning User's access key as an `a
 | `PUT` | `/api/blob/{id}?apiKey=<key>` | Full replace of a blob's JSON. |
 | `DELETE` | `/api/blob/{id}?apiKey=<key>` | Delete a blob. |
 
-Errors: `401` for a missing / invalid / disabled key, `404` for a blob that doesn't exist *or* belongs to a different User (indistinguishable on purpose), `400` for malformed JSON or an invalid blob id.
+Errors: `401` for a missing / invalid / disabled key, `404` for a blob that doesn't exist *or* belongs to a different App (indistinguishable on purpose), `400` for malformed JSON or an invalid blob id.
 
 ```
 curl -X POST "https://your-deployment.vercel.app/api/blob?apiKey=<key>" -d '{"hello":"world"}'
@@ -101,9 +101,9 @@ curl -X DELETE "https://your-deployment.vercel.app/api/blob/<id>?apiKey=<key>"
 
 ## Admin dashboard
 
-- `/users` — list, search, and create Users; copy / regenerate / disable / delete access keys.
-- `/users/[id]` — a User's details and its blobs; create blobs on its behalf.
-- `/blobs` — every blob across all Users, searchable by blob id or owner name.
+- `/apps` — list, search, and create Apps; copy / regenerate / disable / delete access keys.
+- `/apps/[id]` — an App's details and its blobs; create blobs on its behalf.
+- `/blobs` — every blob across all Apps, searchable by blob id or owner name.
 - `/blobs/[id]` — edit or delete a single blob's JSON.
 
 All lists paginate at 10 rows per page.

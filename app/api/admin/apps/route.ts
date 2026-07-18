@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = supabaseServer();
   let query = supabase
-    .from("api_users")
+    .from("apps")
     .select("id, name, access_key, is_active, created_at, updated_at, blobs(count)", {
       count: "exact",
     })
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const { data, error, count } = await query;
 
   if (error) {
-    return NextResponse.json({ error: "Failed to list users" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to list apps" }, { status: 500 });
   }
 
   const items = (data ?? []).map((row: any) => ({
@@ -62,13 +62,13 @@ export async function POST(request: NextRequest) {
 
   const supabase = supabaseServer();
   const { data, error } = await supabase
-    .from("api_users")
+    .from("apps")
     .insert({ name, access_key: generateAccessKey() })
     .select("id, name, access_key, is_active, created_at, updated_at")
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create app" }, { status: 500 });
   }
 
   return NextResponse.json(data, { status: 201 });

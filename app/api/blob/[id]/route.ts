@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import { lookupUserByKey, type ApiUser } from "@/lib/api-key";
+import { lookupAppByKey, type App } from "@/lib/api-key";
 import { isValidUUID, readJsonBody } from "@/lib/validation";
 
-type AuthResult = { user: ApiUser } | { error: NextResponse };
+type AuthResult = { app: App } | { error: NextResponse };
 
 async function authenticate(request: NextRequest): Promise<AuthResult> {
   const apiKey = request.nextUrl.searchParams.get("apiKey");
@@ -11,12 +11,12 @@ async function authenticate(request: NextRequest): Promise<AuthResult> {
     return { error: NextResponse.json({ error: "Missing API key" }, { status: 401 }) };
   }
 
-  const user = await lookupUserByKey(apiKey);
-  if (!user) {
+  const app = await lookupAppByKey(apiKey);
+  if (!app) {
     return { error: NextResponse.json({ error: "Invalid API key" }, { status: 401 }) };
   }
 
-  return { user };
+  return { app };
 }
 
 export async function GET(
@@ -34,11 +34,11 @@ export async function GET(
   const supabase = supabaseServer();
   const { data: blob } = await supabase
     .from("blobs")
-    .select("id, owner_id, data")
+    .select("id, app_id, data")
     .eq("id", id)
     .maybeSingle();
 
-  if (!blob || blob.owner_id !== auth.user.id) {
+  if (!blob || blob.app_id !== auth.app.id) {
     return NextResponse.json({ error: "Blob not found" }, { status: 404 });
   }
 
@@ -69,11 +69,11 @@ export async function PUT(
   const supabase = supabaseServer();
   const { data: existing } = await supabase
     .from("blobs")
-    .select("id, owner_id")
+    .select("id, app_id")
     .eq("id", id)
     .maybeSingle();
 
-  if (!existing || existing.owner_id !== auth.user.id) {
+  if (!existing || existing.app_id !== auth.app.id) {
     return NextResponse.json({ error: "Blob not found" }, { status: 404 });
   }
 
@@ -106,11 +106,11 @@ export async function DELETE(
   const supabase = supabaseServer();
   const { data: existing } = await supabase
     .from("blobs")
-    .select("id, owner_id")
+    .select("id, app_id")
     .eq("id", id)
     .maybeSingle();
 
-  if (!existing || existing.owner_id !== auth.user.id) {
+  if (!existing || existing.app_id !== auth.app.id) {
     return NextResponse.json({ error: "Blob not found" }, { status: 404 });
   }
 

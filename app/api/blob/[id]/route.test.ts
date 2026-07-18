@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "@/tests/support/fake-supabase-server";
-import { makeApiUser, makeBlob } from "@/tests/support/fixtures";
+import { makeApp, makeBlob } from "@/tests/support/fixtures";
 import { makeRequest, withParams } from "@/tests/support/next-request";
 
 const mocks = vi.hoisted(() => ({
   fake: undefined as unknown as FakeSupabaseServer,
-  lookupUserByKey: vi.fn(),
+  lookupAppByKey: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-server", () => ({ supabaseServer: () => mocks.fake }));
-vi.mock("@/lib/api-key", () => ({ lookupUserByKey: mocks.lookupUserByKey }));
+vi.mock("@/lib/api-key", () => ({ lookupAppByKey: mocks.lookupAppByKey }));
 
 import { GET, PUT, DELETE } from "./route";
 
@@ -18,10 +18,10 @@ const RANDOM_UUID = "00000000-0000-0000-0000-000000000000";
 
 beforeEach(() => {
   mocks.fake = createFakeSupabaseServer();
-  mocks.lookupUserByKey.mockReset();
+  mocks.lookupAppByKey.mockReset();
 });
 
-function asUser(user: ReturnType<typeof makeApiUser>) {
+function asUser(user: ReturnType<typeof makeApp>) {
   return { id: user.id, name: user.name, is_active: true };
 }
 
@@ -41,7 +41,7 @@ describe("GET /api/blob/[id]", () => {
   });
 
   it("returns 401 for an invalid apiKey", async () => {
-    mocks.lookupUserByKey.mockResolvedValue(null);
+    mocks.lookupAppByKey.mockResolvedValue(null);
     const res = await GET(
       makeRequest(`http://localhost/api/blob/${RANDOM_UUID}?apiKey=bad`),
       withParams({ id: RANDOM_UUID })
@@ -50,11 +50,11 @@ describe("GET /api/blob/[id]", () => {
   });
 
   it("returns the blob's data when it exists and is owned by the authenticated user", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id, data: { a: 1 } });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id, data: { a: 1 } });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await GET(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_valid`),
@@ -65,12 +65,12 @@ describe("GET /api/blob/[id]", () => {
   });
 
   it("returns 404 when the blob belongs to a different user", async () => {
-    const owner = makeApiUser();
-    const otherUser = makeApiUser();
-    const blob = makeBlob({ owner_id: owner.id });
-    mocks.fake.__state.api_users.push(owner, otherUser);
+    const owner = makeApp();
+    const otherUser = makeApp();
+    const blob = makeBlob({ app_id: owner.id });
+    mocks.fake.__state.apps.push(owner, otherUser);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(otherUser));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(otherUser));
 
     const res = await GET(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_other`),
@@ -81,9 +81,9 @@ describe("GET /api/blob/[id]", () => {
   });
 
   it("returns an identical 404 when the blob doesn't exist at all (ownership-mismatch and not-found are indistinguishable by design)", async () => {
-    const user = makeApiUser();
-    mocks.fake.__state.api_users.push(user);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    const user = makeApp();
+    mocks.fake.__state.apps.push(user);
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await GET(
       makeRequest(`http://localhost/api/blob/${RANDOM_UUID}?apiKey=pb_valid`),
@@ -112,12 +112,12 @@ describe("PUT /api/blob/[id]", () => {
   });
 
   it("returns 404 for ownership mismatch", async () => {
-    const owner = makeApiUser();
-    const otherUser = makeApiUser();
-    const blob = makeBlob({ owner_id: owner.id });
-    mocks.fake.__state.api_users.push(owner, otherUser);
+    const owner = makeApp();
+    const otherUser = makeApp();
+    const blob = makeBlob({ app_id: owner.id });
+    mocks.fake.__state.apps.push(owner, otherUser);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(otherUser));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(otherUser));
 
     const res = await PUT(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_other`, { method: "PUT", body: {} }),
@@ -127,11 +127,11 @@ describe("PUT /api/blob/[id]", () => {
   });
 
   it("returns 400 for malformed JSON", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await PUT(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_valid`, {
@@ -144,11 +144,11 @@ describe("PUT /api/blob/[id]", () => {
   });
 
   it("returns 413 for an oversized body", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await PUT(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_valid`, {
@@ -161,11 +161,11 @@ describe("PUT /api/blob/[id]", () => {
   });
 
   it("replaces the blob's data and returns 200 with the updated data", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id, data: { old: true } });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id, data: { old: true } });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await PUT(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_valid`, {
@@ -179,11 +179,11 @@ describe("PUT /api/blob/[id]", () => {
   });
 
   it("returns 500 when the update itself fails after the existence check passes", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
     mocks.fake.__injectError("blobs", "update");
 
     const res = await PUT(
@@ -212,12 +212,12 @@ describe("DELETE /api/blob/[id]", () => {
   });
 
   it("returns 404 for ownership mismatch", async () => {
-    const owner = makeApiUser();
-    const otherUser = makeApiUser();
-    const blob = makeBlob({ owner_id: owner.id });
-    mocks.fake.__state.api_users.push(owner, otherUser);
+    const owner = makeApp();
+    const otherUser = makeApp();
+    const blob = makeBlob({ app_id: owner.id });
+    mocks.fake.__state.apps.push(owner, otherUser);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(otherUser));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(otherUser));
 
     const res = await DELETE(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_other`, { method: "DELETE" }),
@@ -227,11 +227,11 @@ describe("DELETE /api/blob/[id]", () => {
   });
 
   it("deletes the blob and returns 204 with an empty body", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
-    mocks.lookupUserByKey.mockResolvedValue(asUser(user));
+    mocks.lookupAppByKey.mockResolvedValue(asUser(user));
 
     const res = await DELETE(
       makeRequest(`http://localhost/api/blob/${blob.id}?apiKey=pb_valid`, { method: "DELETE" }),

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PREFIXES = ["/users", "/blobs", "/docs", "/api/admin"];
+const PROTECTED_PREFIXES = ["/apps", "/blobs", "/docs", "/api/admin"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname === "/login" && isAdmin) {
-    return NextResponse.redirect(new URL("/users", request.url));
+    return NextResponse.redirect(new URL("/apps", request.url));
   }
 
   return response;

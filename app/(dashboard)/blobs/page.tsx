@@ -20,9 +20,9 @@ import { BlobIdCell } from "@/components/BlobIdCell";
 
 type BlobRow = {
   id: string;
-  owner_id: string;
-  owner_name: string | null;
-  owner_access_key: string | null;
+  app_id: string;
+  app_name: string | null;
+  app_access_key: string | null;
   data: unknown;
   updated_at: string;
 };
@@ -56,7 +56,7 @@ export default function BlobsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Blobs</h1>
-          <p className="text-sm text-muted-foreground">{total} total across all users.</p>
+          <p className="text-sm text-muted-foreground">{total} total across all apps.</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <PlusIcon className="size-4" />
@@ -67,7 +67,7 @@ export default function BlobsPage() {
       <div className="relative max-w-sm">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by blob ID or owner name..."
+          placeholder="Search by blob ID or app name..."
           value={search}
           onChange={(e) => {
             setPage(1);
@@ -82,7 +82,7 @@ export default function BlobsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Blob ID</TableHead>
-              <TableHead>Owner</TableHead>
+              <TableHead>App</TableHead>
               <TableHead>Preview</TableHead>
               <TableHead>Updated</TableHead>
             </TableRow>
@@ -109,11 +109,11 @@ export default function BlobsPage() {
               items.map((blob) => (
                 <TableRow key={blob.id}>
                   <TableCell>
-                    <BlobIdCell id={blob.id} ownerAccessKey={blob.owner_access_key} />
+                    <BlobIdCell id={blob.id} ownerAccessKey={blob.app_access_key} />
                   </TableCell>
                   <TableCell>
-                    <Link href={`/users/${blob.owner_id}`} className="hover:underline">
-                      {blob.owner_name ?? blob.owner_id}
+                    <Link href={`/apps/${blob.app_id}`} className="hover:underline">
+                      {blob.app_name ?? blob.app_id}
                     </Link>
                   </TableCell>
                   <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">

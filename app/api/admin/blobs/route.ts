@@ -10,15 +10,15 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const { page, limit, from, to } = parsePagination(searchParams);
-  const ownerId = searchParams.get("owner_id");
+  const appId = searchParams.get("app_id");
   const search = searchParams.get("search");
 
-  if (ownerId && !isValidUUID(ownerId)) {
-    return NextResponse.json({ error: "Invalid owner_id" }, { status: 400 });
+  if (appId && !isValidUUID(appId)) {
+    return NextResponse.json({ error: "Invalid app_id" }, { status: 400 });
   }
 
   const searchByName = !!search && !isValidUUID(search);
-  const selectCols = `id, owner_id, data, created_at, updated_at, api_users${
+  const selectCols = `id, app_id, data, created_at, updated_at, apps${
     searchByName ? "!inner" : ""
   }(name, access_key)`;
 
@@ -29,15 +29,15 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  if (ownerId) {
-    query = query.eq("owner_id", ownerId);
+  if (appId) {
+    query = query.eq("app_id", appId);
   }
 
   if (search) {
     if (isValidUUID(search)) {
       query = query.eq("id", search);
     } else {
-      query = query.ilike("api_users.name", `%${search}%`);
+      query = query.ilike("apps.name", `%${search}%`);
     }
   }
 
@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
 
   const items = (data ?? []).map((row: any) => ({
     id: row.id,
-    owner_id: row.owner_id,
-    owner_name: row.api_users?.name ?? null,
-    owner_access_key: row.api_users?.access_key ?? null,
+    app_id: row.app_id,
+    app_name: row.apps?.name ?? null,
+    app_access_key: row.apps?.access_key ?? null,
     data: row.data,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -72,10 +72,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const body = parsed.data as { owner_id?: string; data?: unknown };
-  if (!body.owner_id || !isValidUUID(body.owner_id)) {
+  const body = parsed.data as { app_id?: string; data?: unknown };
+  if (!body.app_id || !isValidUUID(body.app_id)) {
     return NextResponse.json(
-      { error: "owner_id is required and must be a valid UUID" },
+      { error: "app_id is required and must be a valid UUID" },
       { status: 400 }
     );
   }
@@ -86,13 +86,13 @@ export async function POST(request: NextRequest) {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("blobs")
-    .insert({ owner_id: body.owner_id, data: body.data })
-    .select("id, owner_id, data, created_at, updated_at")
+    .insert({ app_id: body.app_id, data: body.data })
+    .select("id, app_id, data, created_at, updated_at")
     .single();
 
   if (error || !data) {
     return NextResponse.json(
-      { error: "Failed to create blob (check owner_id exists)" },
+      { error: "Failed to create blob (check app_id exists)" },
       { status: 400 }
     );
   }

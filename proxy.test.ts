@@ -28,14 +28,14 @@ afterEach(() => {
 describe("proxy middleware", () => {
   it("redirects a protected page to /login when there is no session", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null } });
-    const res = await proxy(req("/users"));
+    const res = await proxy(req("/apps"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
   });
 
   it("returns 401 JSON (not a redirect) for a protected admin API route with no session", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null } });
-    const res = await proxy(req("/api/admin/users"));
+    const res = await proxy(req("/api/admin/apps"));
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Unauthorized" });
   });
@@ -56,12 +56,12 @@ describe("proxy middleware", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("redirects /login -> /users for an already-admin session", async () => {
+  it("redirects /login -> /apps for an already-admin session", async () => {
     delete process.env.ADMIN_EMAIL;
     mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
     const res = await proxy(req("/login"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/users");
+    expect(res.headers.get("location")).toContain("/apps");
   });
 
   it("passes through /login when there is no session (renders the login page)", async () => {

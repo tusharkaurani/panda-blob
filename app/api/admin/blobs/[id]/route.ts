@@ -18,7 +18,7 @@ export async function GET(
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("blobs")
-    .select("id, owner_id, data, created_at, updated_at, api_users(name, access_key)")
+    .select("id, app_id, data, created_at, updated_at, apps(name, access_key)")
     .eq("id", id)
     .maybeSingle();
 
@@ -29,9 +29,9 @@ export async function GET(
   const row = data as any;
   return NextResponse.json({
     id: row.id,
-    owner_id: row.owner_id,
-    owner_name: row.api_users?.name ?? null,
-    owner_access_key: row.api_users?.access_key ?? null,
+    app_id: row.app_id,
+    app_name: row.apps?.name ?? null,
+    app_access_key: row.apps?.access_key ?? null,
     data: row.data,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -68,7 +68,7 @@ export async function PATCH(
     .from("blobs")
     .update({ data: body.data })
     .eq("id", id)
-    .select("id, owner_id, data, created_at, updated_at")
+    .select("id, app_id, data, created_at, updated_at")
     .maybeSingle();
 
   if (error || !data) {

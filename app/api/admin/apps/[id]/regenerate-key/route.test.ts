@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "@/tests/support/fake-supabase-server";
-import { makeApiUser } from "@/tests/support/fixtures";
+import { makeApp } from "@/tests/support/fixtures";
 import { makeRequest, withParams } from "@/tests/support/next-request";
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ beforeEach(() => {
   mocks.requireAdmin.mockResolvedValue({ user: { id: "admin-id", email: "admin@example.com" } });
 });
 
-describe("POST /api/admin/users/[id]/regenerate-key", () => {
+describe("POST /api/admin/apps/[id]/regenerate-key", () => {
   it("passes through requireAdmin's error unchanged", async () => {
     mocks.requireAdmin.mockResolvedValue({
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
@@ -43,14 +43,14 @@ describe("POST /api/admin/users/[id]/regenerate-key", () => {
   });
 
   it("replaces the access key with a new pb_-prefixed value", async () => {
-    const user = makeApiUser({ access_key: "pb_original" });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp({ access_key: "pb_original" });
+    mocks.fake.__state.apps.push(user);
 
     const res = await POST(makeRequest("http://localhost/x", { method: "POST" }), withParams({ id: user.id }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.access_key).toMatch(/^pb_/);
     expect(body.access_key).not.toBe("pb_original");
-    expect(mocks.fake.__state.api_users[0].access_key).toBe(body.access_key);
+    expect(mocks.fake.__state.apps[0].access_key).toBe(body.access_key);
   });
 });

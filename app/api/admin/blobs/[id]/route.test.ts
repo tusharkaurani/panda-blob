@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "@/tests/support/fake-supabase-server";
-import { makeApiUser, makeBlob } from "@/tests/support/fixtures";
+import { makeApp, makeBlob } from "@/tests/support/fixtures";
 import { makeRequest, withParams } from "@/tests/support/next-request";
 
 const mocks = vi.hoisted(() => ({
@@ -42,17 +42,17 @@ describe("GET /api/admin/blobs/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns the blob with embedded owner_name/owner_access_key", async () => {
-    const user = makeApiUser({ name: "project-foo" });
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+  it("returns the blob with embedded app_name/app_access_key", async () => {
+    const user = makeApp({ name: "project-foo" });
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
 
     const res = await GET(makeRequest("http://localhost/x"), withParams({ id: blob.id }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.owner_name).toBe("project-foo");
-    expect(body.owner_access_key).toBe(user.access_key);
+    expect(body.app_name).toBe("project-foo");
+    expect(body.app_access_key).toBe(user.access_key);
   });
 });
 
@@ -98,9 +98,9 @@ describe("PATCH /api/admin/blobs/[id]", () => {
   });
 
   it("updates the blob and returns 200 with the updated row", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id, data: { old: true } });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id, data: { old: true } });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
 
     const res = await PATCH(
@@ -130,9 +130,9 @@ describe("DELETE /api/admin/blobs/[id]", () => {
   });
 
   it("deletes the blob and returns 204", async () => {
-    const user = makeApiUser();
-    const blob = makeBlob({ owner_id: user.id });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    const blob = makeBlob({ app_id: user.id });
+    mocks.fake.__state.apps.push(user);
     mocks.fake.__state.blobs.push(blob);
 
     const res = await DELETE(makeRequest("http://localhost/x", { method: "DELETE" }), withParams({ id: blob.id }));

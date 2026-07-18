@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "@/tests/support/fake-supabase-server";
-import { makeApiUser } from "@/tests/support/fixtures";
-import { generateAccessKey, lookupUserByKey } from "./api-key";
+import { makeApp } from "@/tests/support/fixtures";
+import { generateAccessKey, lookupAppByKey } from "./api-key";
 
 const mocks = vi.hoisted(() => ({ fake: undefined as unknown as FakeSupabaseServer }));
 
@@ -21,34 +21,34 @@ describe("generateAccessKey", () => {
   });
 });
 
-describe("lookupUserByKey", () => {
+describe("lookupAppByKey", () => {
   beforeEach(() => {
     mocks.fake = createFakeSupabaseServer();
   });
 
   it("returns the user for a valid, active key", async () => {
-    const user = makeApiUser({ access_key: "pb_active", is_active: true });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp({ access_key: "pb_active", is_active: true });
+    mocks.fake.__state.apps.push(user);
 
-    const result = await lookupUserByKey("pb_active");
+    const result = await lookupAppByKey("pb_active");
     expect(result).toEqual({ id: user.id, name: user.name, is_active: true });
   });
 
   it("returns null for an inactive user's key", async () => {
-    mocks.fake.__state.api_users.push(makeApiUser({ access_key: "pb_disabled", is_active: false }));
+    mocks.fake.__state.apps.push(makeApp({ access_key: "pb_disabled", is_active: false }));
 
-    const result = await lookupUserByKey("pb_disabled");
+    const result = await lookupAppByKey("pb_disabled");
     expect(result).toBeNull();
   });
 
   it("returns null for a key that doesn't exist", async () => {
-    const result = await lookupUserByKey("pb_nonexistent");
+    const result = await lookupAppByKey("pb_nonexistent");
     expect(result).toBeNull();
   });
 
   it("returns null when the data layer errors", async () => {
-    mocks.fake.__injectError("api_users", "select");
-    const result = await lookupUserByKey("pb_whatever");
+    mocks.fake.__injectError("apps", "select");
+    const result = await lookupAppByKey("pb_whatever");
     expect(result).toBeNull();
   });
 });

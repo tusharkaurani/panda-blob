@@ -42,7 +42,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/users");
+    router.push("/apps");
     router.refresh();
   }
 
@@ -54,7 +54,7 @@ export default function LoginPage() {
             <Logo size="lg" />
             <div className="space-y-1.5">
               <CardTitle className="text-2xl font-semibold tracking-tight">Admin console</CardTitle>
-              <CardDescription className="text-sm">Sign in to manage users and blobs.</CardDescription>
+              <CardDescription className="text-sm">Sign in to manage apps and blobs.</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

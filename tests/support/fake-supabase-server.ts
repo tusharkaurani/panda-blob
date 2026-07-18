@@ -13,33 +13,33 @@
 //   - `count: "exact"` reflects the full filtered set, computed BEFORE
 //     `.range()` slicing (this is the #1 way a fake could make pagination
 //     tests pass while testing the wrong thing).
-//   - embedded-resource shapes: `api_users(name, access_key)` on `blobs`
-//     attaches a single object (`row.api_users = {...}`); `blobs(count)` on
-//     `api_users` attaches a one-element aggregate array
+//   - embedded-resource shapes: `apps(name, access_key)` on `blobs`
+//     attaches a single object (`row.apps = {...}`); `blobs(count)` on
+//     `apps` attaches a one-element aggregate array
 //     (`row.blobs = [{ count: N }]`), matching what the routes destructure
-//     (`row.api_users?.name`, `row.blobs?.[0]?.count ?? 0`).
-//   - `.ilike("api_users.name", "%x%")` filters the outer row by its
+//     (`row.apps?.name`, `row.blobs?.[0]?.count ?? 0`).
+//   - `.ilike("apps.name", "%x%")` filters the outer row by its
 //     *embedded* resource's column — the one dot-notation case the admin
 //     blob search endpoint relies on.
-//   - `owner_id` foreign-key violations on `blobs` insert, so the "check
-//     owner_id exists" 400 branch is reachable without manual error
+//   - `app_id` foreign-key violations on `blobs` insert, so the "check
+//     app_id exists" 400 branch is reachable without manual error
 //     injection.
-//   - cascade delete (`blobs.owner_id references api_users(id) on delete
-//     cascade`), so deleting a user also removes its blobs from state —
+//   - cascade delete (`blobs.app_id references apps(id) on delete
+//     cascade`), so deleting an app also removes its blobs from state —
 //     keeps shared fixture state from accumulating orphans.
 
 import { randomUUID } from "node:crypto";
 import type { Database } from "@/lib/database.types";
 
-export type ApiUserRow = Database["public"]["Tables"]["api_users"]["Row"];
+export type AppRow = Database["public"]["Tables"]["apps"]["Row"];
 export type BlobRow = Database["public"]["Tables"]["blobs"]["Row"];
 
 export interface FakeState {
-  api_users: ApiUserRow[];
+  apps: AppRow[];
   blobs: BlobRow[];
 }
 
-type TableName = "api_users" | "blobs";
+type TableName = "apps" | "blobs";
 type Verb = "select" | "insert" | "update" | "delete";
 type FakeError = { message: string };
 
@@ -75,18 +75,18 @@ function ilikeToRegExp(pattern: string): RegExp {
 // lets you filter on columns you didn't select. Projection to just the
 // requested columns happens separately, after filtering/ordering/range, via
 // `projectRow` below.
-function resolveEmbeds(table: TableName, cols: string, row: ApiUserRow | BlobRow, state: FakeState): any {
+function resolveEmbeds(table: TableName, cols: string, row: AppRow | BlobRow, state: FakeState): any {
   const hydrated: any = cloneRow(row);
 
-  if (table === "blobs" && /api_users(!inner)?\(/.test(cols)) {
+  if (table === "blobs" && /apps(!inner)?\(/.test(cols)) {
     const blob = row as BlobRow;
-    const owner = state.api_users.find((u) => u.id === blob.owner_id) ?? null;
-    hydrated.api_users = owner ? { name: owner.name, access_key: owner.access_key } : null;
+    const app = state.apps.find((a) => a.id === blob.app_id) ?? null;
+    hydrated.apps = app ? { name: app.name, access_key: app.access_key } : null;
   }
 
-  if (table === "api_users" && /blobs\(count\)/.test(cols)) {
-    const user = row as ApiUserRow;
-    const count = state.blobs.filter((b) => b.owner_id === user.id).length;
+  if (table === "apps" && /blobs\(count\)/.test(cols)) {
+    const app = row as AppRow;
+    const count = state.blobs.filter((b) => b.app_id === app.id).length;
     hydrated.blobs = [{ count }];
   }
 
@@ -94,8 +94,8 @@ function resolveEmbeds(table: TableName, cols: string, row: ApiUserRow | BlobRow
 }
 
 // Splits a `select()` column string on top-level commas only, respecting
-// parens, so `"id, api_users(name, access_key)"` splits into
-// `["id", "api_users(name, access_key)"]` — not four pieces.
+// parens, so `"id, apps(name, access_key)"` splits into
+// `["id", "apps(name, access_key)"]` — not four pieces.
 function splitTopLevel(cols: string): string[] {
   const tokens: string[] = [];
   let depth = 0;
@@ -268,7 +268,7 @@ class FakeQueryBuilder implements PromiseLike<ExecResult> {
 
     const isInner = /!inner\(/.test(this.selectCols);
     if (isInner && this.table === "blobs") {
-      filtered = filtered.filter((row) => row.api_users != null);
+      filtered = filtered.filter((row) => row.apps != null);
     }
 
     const count = this.selectOpts.count === "exact" ? filtered.length : null;
@@ -295,10 +295,10 @@ class FakeQueryBuilder implements PromiseLike<ExecResult> {
 
     for (const payload of rows) {
       if (this.table === "blobs") {
-        const ownerId = (payload as any).owner_id;
-        const ownerExists = this.state.api_users.some((u) => u.id === ownerId);
-        if (!ownerExists) {
-          return { data: null, error: { message: "foreign key violation: owner_id" }, count: null };
+        const appId = (payload as any).app_id;
+        const appExists = this.state.apps.some((a) => a.id === appId);
+        if (!appExists) {
+          return { data: null, error: { message: "foreign key violation: app_id" }, count: null };
         }
       }
 
@@ -306,7 +306,7 @@ class FakeQueryBuilder implements PromiseLike<ExecResult> {
         id: randomUUID(),
         created_at: now,
         updated_at: now,
-        ...(this.table === "api_users" ? { is_active: true } : {}),
+        ...(this.table === "apps" ? { is_active: true } : {}),
         ...payload,
       };
       (this.state[this.table] as any[]).push(base);
@@ -337,9 +337,9 @@ class FakeQueryBuilder implements PromiseLike<ExecResult> {
     const toDelete = table.filter((row) => this._matchesFilters(row));
     const deleteIds = new Set(toDelete.map((row) => row.id));
 
-    if (this.table === "api_users") {
-      this.state.api_users = this.state.api_users.filter((u) => !deleteIds.has(u.id));
-      this.state.blobs = this.state.blobs.filter((b) => !deleteIds.has(b.owner_id));
+    if (this.table === "apps") {
+      this.state.apps = this.state.apps.filter((a) => !deleteIds.has(a.id));
+      this.state.blobs = this.state.blobs.filter((b) => !deleteIds.has(b.app_id));
     } else {
       this.state.blobs = this.state.blobs.filter((b) => !deleteIds.has(b.id));
     }
@@ -357,7 +357,7 @@ export interface FakeSupabaseServer {
 
 export function createFakeSupabaseServer(seed: Partial<FakeState> = {}): FakeSupabaseServer {
   const state: FakeState = {
-    api_users: (seed.api_users ?? []).map(cloneRow),
+    apps: (seed.apps ?? []).map(cloneRow),
     blobs: (seed.blobs ?? []).map(cloneRow),
   };
   const pendingErrors = new Map<string, FakeError>();

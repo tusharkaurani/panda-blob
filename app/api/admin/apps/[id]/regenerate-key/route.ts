@@ -13,19 +13,19 @@ export async function POST(
 
   const { id } = await params;
   if (!isValidUUID(id)) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid app id" }, { status: 400 });
   }
 
   const supabase = supabaseServer();
   const { data, error } = await supabase
-    .from("api_users")
+    .from("apps")
     .update({ access_key: generateAccessKey() })
     .eq("id", id)
     .select("id, access_key")
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ error: "App not found" }, { status: 404 });
   }
 
   return NextResponse.json(data);

@@ -17,7 +17,7 @@ export default async function DashboardLayout({
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/60">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-7">
-            <Link href="/users">
+            <Link href="/apps">
               <Logo />
             </Link>
             <NavLinks />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import { lookupUserByKey } from "@/lib/api-key";
+import { lookupAppByKey } from "@/lib/api-key";
 import { readJsonBody } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });
   }
 
-  const user = await lookupUserByKey(apiKey);
-  if (!user) {
+  const app = await lookupAppByKey(apiKey);
+  if (!app) {
     return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
   }
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   const supabase = supabaseServer();
   const { data: blob, error } = await supabase
     .from("blobs")
-    .insert({ owner_id: user.id, data })
+    .insert({ app_id: app.id, data })
     .select("id, data")
     .single();
 

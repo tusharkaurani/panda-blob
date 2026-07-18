@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 import { createFakeSupabaseServer, type FakeSupabaseServer } from "@/tests/support/fake-supabase-server";
-import { makeApiUser, makeBlob } from "@/tests/support/fixtures";
+import { makeApp, makeBlob } from "@/tests/support/fixtures";
 import { makeRequest, withParams } from "@/tests/support/next-request";
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ beforeEach(() => {
   mocks.requireAdmin.mockResolvedValue({ user: { id: "admin-id", email: "admin@example.com" } });
 });
 
-describe("GET /api/admin/users/[id]", () => {
+describe("GET /api/admin/apps/[id]", () => {
   it("passes through requireAdmin's error unchanged", async () => {
     mocks.requireAdmin.mockResolvedValue({
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
@@ -43,9 +43,9 @@ describe("GET /api/admin/users/[id]", () => {
   });
 
   it("returns the user with blob_count", async () => {
-    const user = makeApiUser();
-    mocks.fake.__state.api_users.push(user);
-    mocks.fake.__state.blobs.push(makeBlob({ owner_id: user.id }));
+    const user = makeApp();
+    mocks.fake.__state.apps.push(user);
+    mocks.fake.__state.blobs.push(makeBlob({ app_id: user.id }));
 
     const res = await GET(makeRequest("http://localhost/x"), withParams({ id: user.id }));
     expect(res.status).toBe(200);
@@ -53,7 +53,7 @@ describe("GET /api/admin/users/[id]", () => {
   });
 });
 
-describe("PATCH /api/admin/users/[id]", () => {
+describe("PATCH /api/admin/apps/[id]", () => {
   it("returns 400 for an invalid UUID", async () => {
     const res = await PATCH(
       makeRequest("http://localhost/x", { method: "PATCH", body: { is_active: false } }),
@@ -95,8 +95,8 @@ describe("PATCH /api/admin/users/[id]", () => {
   });
 
   it("toggles is_active true -> false", async () => {
-    const user = makeApiUser({ is_active: true });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp({ is_active: true });
+    mocks.fake.__state.apps.push(user);
     const res = await PATCH(
       makeRequest("http://localhost/x", { method: "PATCH", body: { is_active: false } }),
       withParams({ id: user.id })
@@ -105,8 +105,8 @@ describe("PATCH /api/admin/users/[id]", () => {
   });
 
   it("toggles is_active false -> true", async () => {
-    const user = makeApiUser({ is_active: false });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp({ is_active: false });
+    mocks.fake.__state.apps.push(user);
     const res = await PATCH(
       makeRequest("http://localhost/x", { method: "PATCH", body: { is_active: true } }),
       withParams({ id: user.id })
@@ -115,8 +115,8 @@ describe("PATCH /api/admin/users/[id]", () => {
   });
 
   it("updates the name", async () => {
-    const user = makeApiUser({ name: "old-name" });
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp({ name: "old-name" });
+    mocks.fake.__state.apps.push(user);
     const res = await PATCH(
       makeRequest("http://localhost/x", { method: "PATCH", body: { name: "new-name" } }),
       withParams({ id: user.id })
@@ -125,7 +125,7 @@ describe("PATCH /api/admin/users/[id]", () => {
   });
 });
 
-describe("DELETE /api/admin/users/[id]", () => {
+describe("DELETE /api/admin/apps/[id]", () => {
   it("returns 400 for an invalid UUID", async () => {
     const res = await DELETE(makeRequest("http://localhost/x", { method: "DELETE" }), withParams({ id: INVALID_UUID }));
     expect(res.status).toBe(400);
@@ -137,16 +137,16 @@ describe("DELETE /api/admin/users/[id]", () => {
   });
 
   it("returns 500 on a data-layer error", async () => {
-    mocks.fake.__injectError("api_users", "delete");
+    mocks.fake.__injectError("apps", "delete");
     const res = await DELETE(makeRequest("http://localhost/x", { method: "DELETE" }), withParams({ id: RANDOM_UUID }));
     expect(res.status).toBe(500);
   });
 
   it("deletes the user and returns 204", async () => {
-    const user = makeApiUser();
-    mocks.fake.__state.api_users.push(user);
+    const user = makeApp();
+    mocks.fake.__state.apps.push(user);
     const res = await DELETE(makeRequest("http://localhost/x", { method: "DELETE" }), withParams({ id: user.id }));
     expect(res.status).toBe(204);
-    expect(mocks.fake.__state.api_users).toHaveLength(0);
+    expect(mocks.fake.__state.apps).toHaveLength(0);
   });
 });
