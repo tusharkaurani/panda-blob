@@ -1,6 +1,7 @@
 "use client";
 
-import { Button } from "./Button";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { Button } from "./button";
 
 export function Pagination({
   page,
@@ -16,7 +17,7 @@ export function Pagination({
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm text-gray-600">
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm text-muted-foreground">
       <span>
         {total === 0
           ? "0 results"
@@ -24,21 +25,25 @@ export function Pagination({
       </span>
       <div className="flex items-center gap-2">
         <Button
-          variant="secondary"
+          variant="outline"
+          size="sm"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
+          <ChevronLeftIcon className="size-3.5" />
           Previous
         </Button>
-        <span>
+        <span className="tabular-nums">
           Page {page} of {totalPages}
         </span>
         <Button
-          variant="secondary"
+          variant="outline"
+          size="sm"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
         >
           Next
+          <ChevronRightIcon className="size-3.5" />
         </Button>
       </div>
     </div>

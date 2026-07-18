@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateAccessKey } from "@/lib/api-key";
 import { parsePagination } from "@/lib/pagination";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   const { searchParams } = request.nextUrl;
   const { page, limit, from, to } = parsePagination(searchParams);
   const search = searchParams.get("search");
@@ -41,6 +45,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   let body: { name?: string };
   try {
     body = await request.json();

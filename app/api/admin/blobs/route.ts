@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parsePagination } from "@/lib/pagination";
-import { isValidUUID } from "@/lib/validation";
+import { isValidUUID, readJsonBody } from "@/lib/validation";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   const { searchParams } = request.nextUrl;
   const { page, limit, from, to } = parsePagination(searchParams);
   const ownerId = searchParams.get("owner_id");
@@ -16,7 +20,7 @@ export async function GET(request: NextRequest) {
   const searchByName = !!search && !isValidUUID(search);
   const selectCols = `id, owner_id, data, created_at, updated_at, api_users${
     searchByName ? "!inner" : ""
-  }(name)`;
+  }(name, access_key)`;
 
   const supabase = supabaseServer();
   let query = supabase
@@ -47,6 +51,7 @@ export async function GET(request: NextRequest) {
     id: row.id,
     owner_id: row.owner_id,
     owner_name: row.api_users?.name ?? null,
+    owner_access_key: row.api_users?.access_key ?? null,
     data: row.data,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -56,13 +61,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { owner_id?: string; data?: unknown };
-  try {
-    body = await request.json();
-  } catch {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
+  const parsed = await readJsonBody(request);
+  if ("error" in parsed) {
+    if (parsed.error === "too_large") {
+      return NextResponse.json({ error: "Body too large (max 3MB)" }, { status: 413 });
+    }
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const body = parsed.data as { owner_id?: string; data?: unknown };
   if (!body.owner_id || !isValidUUID(body.owner_id)) {
     return NextResponse.json(
       { error: "owner_id is required and must be a valid UUID" },

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { LogoutButton } from "@/components/LogoutButton";
+import { NavLinks } from "@/components/NavLinks";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 
 export default async function DashboardLayout({
   children,
@@ -11,19 +14,19 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            <span className="font-semibold text-gray-900">pandablob</span>
-            <Link href="/users" className="text-gray-600 hover:text-gray-900">
-              Users
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/60">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+          <div className="flex items-center gap-7">
+            <Link href="/users">
+              <Logo />
             </Link>
-            <Link href="/blobs" className="text-gray-600 hover:text-gray-900">
-              Blobs
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
-            {user?.email && <span>{user.email}</span>}
+            <NavLinks />
+          </div>
+          <div className="flex items-center gap-3">
+            {user?.email && (
+              <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+            )}
+            <ThemeToggle />
             <LogoutButton />
           </div>
         </div>

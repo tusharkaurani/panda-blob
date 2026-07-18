@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import { isValidUUID } from "@/lib/validation";
+import { isValidUUID, readJsonBody } from "@/lib/validation";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   const { id } = await params;
   if (!isValidUUID(id)) {
     return NextResponse.json({ error: "Invalid blob id" }, { status: 400 });
@@ -14,7 +18,7 @@ export async function GET(
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("blobs")
-    .select("id, owner_id, data, created_at, updated_at, api_users(name)")
+    .select("id, owner_id, data, created_at, updated_at, api_users(name, access_key)")
     .eq("id", id)
     .maybeSingle();
 
@@ -27,6 +31,7 @@ export async function GET(
     id: row.id,
     owner_id: row.owner_id,
     owner_name: row.api_users?.name ?? null,
+    owner_access_key: row.api_users?.access_key ?? null,
     data: row.data,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -37,18 +42,23 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   const { id } = await params;
   if (!isValidUUID(id)) {
     return NextResponse.json({ error: "Invalid blob id" }, { status: 400 });
   }
 
-  let body: { data?: unknown };
-  try {
-    body = await request.json();
-  } catch {
+  const parsed = await readJsonBody(request);
+  if ("error" in parsed) {
+    if (parsed.error === "too_large") {
+      return NextResponse.json({ error: "Body too large (max 3MB)" }, { status: 413 });
+    }
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const body = parsed.data as { data?: unknown };
   if (body.data === undefined) {
     return NextResponse.json({ error: "data is required" }, { status: 400 });
   }
@@ -72,6 +82,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   const { id } = await params;
   if (!isValidUUID(id)) {
     return NextResponse.json({ error: "Invalid blob id" }, { status: 400 });

@@ -1,9 +1,28 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Modal } from "./ui/Modal";
-import { Button } from "./ui/Button";
+import { useEffect, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { JsonEditor } from "./JsonEditor";
+
+type OwnerOption = { id: string; name: string };
 
 export function CreateBlobModal({
   open,
@@ -13,16 +32,46 @@ export function CreateBlobModal({
 }: {
   open: boolean;
   onClose: () => void;
-  ownerId: string;
+  /** Fixed owner. When omitted, the modal shows a picker to choose one. */
+  ownerId?: string;
   onCreated: () => void;
 }) {
   const [text, setText] = useState("{}");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Owner picker state — only used when no fixed ownerId was provided.
+  const pickOwner = ownerId === undefined;
+  const [owners, setOwners] = useState<OwnerOption[]>([]);
+  const [selectedOwner, setSelectedOwner] = useState("");
+
+  useEffect(() => {
+    if (!open || !pickOwner) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/admin/users?page=1&limit=1000");
+      const body = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      const items: OwnerOption[] = (body.items ?? []).map((u: OwnerOption) => ({
+        id: u.id,
+        name: u.name,
+      }));
+      setOwners(items);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, pickOwner]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const effectiveOwner = pickOwner ? selectedOwner : ownerId;
+    if (!effectiveOwner) {
+      setError("Select an owner");
+      return;
+    }
 
     let data: unknown;
     try {
@@ -36,7 +85,7 @@ export function CreateBlobModal({
     const res = await fetch("/api/admin/blobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner_id: ownerId, data }),
+      body: JSON.stringify({ owner_id: effectiveOwner, data }),
     });
     setLoading(false);
 
@@ -47,24 +96,53 @@ export function CreateBlobModal({
     }
 
     setText("{}");
+    setSelectedOwner("");
     onCreated();
     onClose();
+    toast.success("Blob created");
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Create blob">
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <JsonEditor value={text} onChange={setText} height="240px" />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? "Creating..." : "Create"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <DialogHeader>
+            <DialogTitle>Create blob</DialogTitle>
+            <DialogDescription>Store a new JSON document.</DialogDescription>
+          </DialogHeader>
+
+          {pickOwner && (
+            <div className="space-y-1.5">
+              <Label htmlFor="blob-owner">Owner</Label>
+              <Select value={selectedOwner} onValueChange={(v) => setSelectedOwner(v ?? "")}>
+                <SelectTrigger id="blob-owner" className="w-full">
+                  <SelectValue placeholder="Select a user…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <JsonEditor value={text} onChange={setText} height="240px" />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2Icon className="size-4 animate-spin" />}
+              {loading ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

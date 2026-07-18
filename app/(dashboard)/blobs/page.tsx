@@ -2,12 +2,27 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { PlusIcon, SearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Pagination } from "@/components/ui/Pagination";
+import { CreateBlobModal } from "@/components/CreateBlobModal";
+import { BlobIdCell } from "@/components/BlobIdCell";
 
 type BlobRow = {
   id: string;
   owner_id: string;
   owner_name: string | null;
+  owner_access_key: string | null;
   data: unknown;
   updated_at: string;
 };
@@ -18,6 +33,7 @@ export default function BlobsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
   const limit = 10;
 
   const load = useCallback(async () => {
@@ -38,63 +54,90 @@ export default function BlobsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Blobs</h1>
-        <span className="text-sm text-gray-500">{total} total</span>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Blobs</h1>
+          <p className="text-sm text-muted-foreground">{total} total across all users.</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <PlusIcon className="size-4" />
+          Create blob
+        </Button>
       </div>
 
-      <input
-        placeholder="Search by blob ID or owner name..."
-        value={search}
-        onChange={(e) => {
-          setPage(1);
-          setSearch(e.target.value);
-        }}
-        className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
-      />
+      <div className="relative max-w-sm">
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search by blob ID or owner name..."
+          value={search}
+          onChange={(e) => {
+            setPage(1);
+            setSearch(e.target.value);
+          }}
+          className="pl-8"
+        />
+      </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>
-              <th className="px-4 py-2">Blob ID</th>
-              <th className="px-4 py-2">Owner</th>
-              <th className="px-4 py-2">Preview</th>
-              <th className="px-4 py-2">Updated</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+      <div className="rounded-xl border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Blob ID</TableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Preview</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading &&
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-4 w-full max-w-40" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
             {!loading && items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                   No blobs found.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-            {items.map((blob) => (
-              <tr key={blob.id}>
-                <td className="px-4 py-2 font-mono text-xs">
-                  <Link href={`/blobs/${blob.id}`} className="hover:underline">
-                    {blob.id}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">
-                  <Link href={`/users/${blob.owner_id}`} className="hover:underline">
-                    {blob.owner_name ?? blob.owner_id}
-                  </Link>
-                </td>
-                <td className="max-w-xs truncate px-4 py-2 font-mono text-xs text-gray-500">
-                  {JSON.stringify(blob.data)}
-                </td>
-                <td className="px-4 py-2 text-gray-500">
-                  {new Date(blob.updated_at).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            {!loading &&
+              items.map((blob) => (
+                <TableRow key={blob.id}>
+                  <TableCell>
+                    <BlobIdCell id={blob.id} ownerAccessKey={blob.owner_access_key} />
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/users/${blob.owner_id}`} className="hover:underline">
+                      {blob.owner_name ?? blob.owner_id}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">
+                    {JSON.stringify(blob.data)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(blob.updated_at).toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
       </div>
 
       <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
+
+      <CreateBlobModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setPage(1);
+          load();
+        }}
+      />
     </div>
   );
 }

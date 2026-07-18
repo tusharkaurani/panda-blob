@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { lookupUserByKey, type ApiUser } from "@/lib/api-key";
-import { isValidUUID } from "@/lib/validation";
+import { isValidUUID, readJsonBody } from "@/lib/validation";
 
 type AuthResult = { user: ApiUser } | { error: NextResponse };
 
@@ -57,12 +57,14 @@ export async function PUT(
   const auth = await authenticate(request);
   if ("error" in auth) return auth.error;
 
-  let data: unknown;
-  try {
-    data = await request.json();
-  } catch {
+  const parsed = await readJsonBody(request);
+  if ("error" in parsed) {
+    if (parsed.error === "too_large") {
+      return NextResponse.json({ error: "Body too large (max 3MB)" }, { status: 413 });
+    }
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  const data = parsed.data;
 
   const supabase = supabaseServer();
   const { data: existing } = await supabase

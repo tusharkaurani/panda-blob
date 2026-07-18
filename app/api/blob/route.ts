@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { lookupUserByKey } from "@/lib/api-key";
+import { readJsonBody } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
   const apiKey = request.nextUrl.searchParams.get("apiKey");
@@ -13,12 +14,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
   }
 
-  let data: unknown;
-  try {
-    data = await request.json();
-  } catch {
+  const parsed = await readJsonBody(request);
+  if ("error" in parsed) {
+    if (parsed.error === "too_large") {
+      return NextResponse.json({ error: "Body too large (max 3MB)" }, { status: 413 });
+    }
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  const data = parsed.data;
 
   const supabase = supabaseServer();
   const { data: blob, error } = await supabase

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import {
@@ -15,26 +15,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function CreateUserModal({
+export function RenameUserModal({
   open,
   onClose,
-  onCreated,
+  userId,
+  currentName,
+  onRenamed,
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  userId: string;
+  currentName: string;
+  onRenamed: () => void;
 }) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(currentName);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setName(currentName);
+      setError(null);
+    }
+  }, [open, currentName]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+
+    if (name.trim() === currentName) {
+      onClose();
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    const res = await fetch("/api/admin/users", {
-      method: "POST",
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
@@ -43,14 +60,13 @@ export function CreateUserModal({
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Failed to create user");
+      setError(body.error ?? "Failed to rename user");
       return;
     }
 
-    setName("");
-    onCreated();
+    onRenamed();
     onClose();
-    toast.success(`Created user "${name}"`);
+    toast.success("User renamed");
   }
 
   return (
@@ -58,21 +74,18 @@ export function CreateUserModal({
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create user</DialogTitle>
-            <DialogDescription>
-              A new API consumer account with an auto-generated access key.
-            </DialogDescription>
+            <DialogTitle>Rename user</DialogTitle>
+            <DialogDescription>Update this user&apos;s display name.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-1.5 py-2">
-            <Label htmlFor="user-name">Name</Label>
+            <Label htmlFor="rename-user-name">Name</Label>
             <Input
-              id="user-name"
+              id="rename-user-name"
               required
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. project-foo"
             />
           </div>
 
@@ -82,9 +95,9 @@ export function CreateUserModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !name.trim()}>
               {loading && <Loader2Icon className="size-4 animate-spin" />}
-              {loading ? "Creating..." : "Create"}
+              {loading ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </form>
