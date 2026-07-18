@@ -23,3 +23,6 @@ npm-debug.log*
 next-env.d.ts
 .vercel
 .env*
+
+# test coverage
+/coverage
