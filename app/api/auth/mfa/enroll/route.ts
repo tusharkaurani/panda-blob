@@ -13,8 +13,15 @@ export async function POST() {
   // "unverified" factor collides with any new enrollment and enroll() fails
   // with "A factor with the friendly name ... already exists". Clear out any
   // stale unverified TOTP factors first so re-enrolling is always possible.
+  //
+  // Note: listFactors()'s `.totp` array only contains *verified* TOTP
+  // factors (it's meant for AAL bookkeeping) — unverified ones only show up
+  // in `.all`. Filtering on `.totp` here silently finds nothing, so we have
+  // to filter `.all` by factor_type ourselves.
   const { data: existing } = await supabase.auth.mfa.listFactors();
-  const staleFactors = (existing?.totp ?? []).filter((f) => f.status !== "verified");
+  const staleFactors = (existing?.all ?? []).filter(
+    (f) => f.factor_type === "totp" && f.status !== "verified"
+  );
   for (const factor of staleFactors) {
     await supabase.auth.mfa.unenroll({ factorId: factor.id });
   }

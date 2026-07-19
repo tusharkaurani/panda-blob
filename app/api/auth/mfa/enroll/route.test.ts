@@ -23,7 +23,7 @@ beforeEach(() => {
   mocks.enroll.mockReset();
   mocks.listFactors.mockReset();
   mocks.unenroll.mockReset();
-  mocks.listFactors.mockResolvedValue({ data: { totp: [] }, error: null });
+  mocks.listFactors.mockResolvedValue({ data: { all: [], totp: [] }, error: null });
   mocks.unenroll.mockResolvedValue({ data: {}, error: null });
 });
 
@@ -64,10 +64,15 @@ describe("POST /api/auth/mfa/enroll", () => {
     mocks.requireAuthenticatedAdmin.mockResolvedValue({ user: { email: "admin@example.com" } });
     mocks.listFactors.mockResolvedValue({
       data: {
-        totp: [
-          { id: "stale-1", status: "unverified" },
-          { id: "verified-1", status: "verified" },
+        // Real Supabase only surfaces *verified* factors in `.totp` — an
+        // unverified leftover factor only shows up in `.all`. Mock both to
+        // mirror that shape so this test actually exercises the `.all`
+        // filtering logic in the route.
+        all: [
+          { id: "stale-1", factor_type: "totp", status: "unverified" },
+          { id: "verified-1", factor_type: "totp", status: "verified" },
         ],
+        totp: [{ id: "verified-1", status: "verified" }],
       },
       error: null,
     });
