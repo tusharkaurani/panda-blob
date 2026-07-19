@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PlusIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,18 +34,26 @@ export default function BlobsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const hasLoaded = useRef(false);
   const limit = 10;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (hasLoaded.current) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
     const res = await fetch(`/api/admin/blobs?${params}`);
     const body = await res.json();
     setItems(body.items ?? []);
     setTotal(body.total ?? 0);
+    hasLoaded.current = true;
     setLoading(false);
+    setRefreshing(false);
   }, [page, search]);
 
   useEffect(() => {
@@ -88,7 +96,7 @@ export default function BlobsPage() {
               <TableHead>Updated</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className={refreshing ? "opacity-60 transition-opacity" : ""}>
             {loading &&
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
@@ -137,9 +145,9 @@ export default function BlobsPage() {
       <CreateBlobModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={() => {
+        onCreated={async () => {
           setPage(1);
-          load();
+          await load();
         }}
       />
     </div>

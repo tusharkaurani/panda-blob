@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { CheckIcon, CopyIcon, MoreHorizontalIcon, PlusIcon, SearchIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  SearchIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,22 +58,33 @@ export default function AppsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppRow | null>(null);
   const [regenerateTarget, setRegenerateTarget] = useState<AppRow | null>(null);
   const [renameTarget, setRenameTarget] = useState<AppRow | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const hasLoaded = useRef(false);
   const limit = 10;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (hasLoaded.current) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
     const res = await fetch(`/api/admin/apps?${params}`);
     const body = await res.json();
     setItems(body.items ?? []);
     setTotal(body.total ?? 0);
+    hasLoaded.current = true;
     setLoading(false);
+    setRefreshing(false);
   }, [page, search]);
 
   useEffect(() => {
@@ -74,29 +92,35 @@ export default function AppsPage() {
   }, [load]);
 
   async function handleToggleActive(app: AppRow) {
+    setTogglingId(app.id);
     await fetch(`/api/admin/apps/${app.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: !app.is_active }),
     });
     toast.success(app.is_active ? `Disabled "${app.name}"` : `Enabled "${app.name}"`);
-    load();
+    await load();
+    setTogglingId(null);
   }
 
   async function handleRegenerate() {
     if (!regenerateTarget) return;
+    setRegenerating(true);
     await fetch(`/api/admin/apps/${regenerateTarget.id}/regenerate-key`, { method: "POST" });
     toast.success(`Regenerated access key for "${regenerateTarget.name}"`);
+    await load();
+    setRegenerating(false);
     setRegenerateTarget(null);
-    load();
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
+    setDeleting(true);
     await fetch(`/api/admin/apps/${deleteTarget.id}`, { method: "DELETE" });
     toast.success(`Deleted "${deleteTarget.name}"`);
+    await load();
+    setDeleting(false);
     setDeleteTarget(null);
-    load();
   }
 
   function handleCopy(app: AppRow) {
@@ -143,7 +167,7 @@ export default function AppsPage() {
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className={refreshing ? "opacity-60 transition-opacity" : "transition-opacity"}>
             {loading &&
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
@@ -206,7 +230,13 @@ export default function AppsPage() {
                         <DropdownMenuItem onClick={() => setRenameTarget(app)}>
                           Rename
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleToggleActive(app)}>
+                        <DropdownMenuItem
+                          onClick={() => handleToggleActive(app)}
+                          disabled={togglingId === app.id}
+                        >
+                          {togglingId === app.id && (
+                            <Loader2Icon className="size-3.5 animate-spin" />
+                          )}
                           {app.is_active ? "Disable" : "Enable"}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setRegenerateTarget(app)}>
@@ -241,7 +271,7 @@ export default function AppsPage() {
 
       <AlertDialog
         open={regenerateTarget !== null}
-        onOpenChange={(next) => !next && setRegenerateTarget(null)}
+        onOpenChange={(next) => !next && !regenerating && setRegenerateTarget(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -251,13 +281,19 @@ export default function AppsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRegenerate}>Regenerate</AlertDialogAction>
+            <AlertDialogCancel disabled={regenerating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating && <Loader2Icon className="size-4 animate-spin" />}
+              {regenerating ? "Regenerating..." : "Regenerate"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(next) => !next && setDeleteTarget(null)}>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => !next && !deleting && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this app?</AlertDialogTitle>
@@ -267,12 +303,14 @@ export default function AppsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={deleting}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Delete
+              {deleting && <Loader2Icon className="size-4 animate-spin" />}
+              {deleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

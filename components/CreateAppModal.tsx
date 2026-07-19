@@ -22,7 +22,7 @@ export function CreateAppModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: () => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,16 +39,16 @@ export function CreateAppModal({
       body: JSON.stringify({ name }),
     });
 
-    setLoading(false);
-
     if (!res.ok) {
+      setLoading(false);
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Failed to create app");
       return;
     }
 
+    await onCreated();
+    setLoading(false);
     setName("");
-    onCreated();
     onClose();
     toast.success(`Created app "${name}"`);
   }

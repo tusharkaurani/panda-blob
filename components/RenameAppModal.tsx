@@ -26,7 +26,7 @@ export function RenameAppModal({
   onClose: () => void;
   appId: string;
   currentName: string;
-  onRenamed: () => void;
+  onRenamed: () => void | Promise<void>;
 }) {
   const [name, setName] = useState(currentName);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +56,15 @@ export function RenameAppModal({
       body: JSON.stringify({ name }),
     });
 
-    setLoading(false);
-
     if (!res.ok) {
+      setLoading(false);
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Failed to rename app");
       return;
     }
 
-    onRenamed();
+    await onRenamed();
+    setLoading(false);
     onClose();
     toast.success("App renamed");
   }

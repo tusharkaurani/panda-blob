@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
+import { Loader2Icon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Factor | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,18 +50,21 @@ export default function SettingsPage() {
 
   async function handleRemove() {
     if (!removeTarget) return;
+    setRemoving(true);
     const res = await fetch("/api/auth/mfa/unenroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ factorId: removeTarget.id }),
     });
-    setRemoveTarget(null);
     if (!res.ok) {
+      setRemoving(false);
       toast.error("Failed to remove two-factor authentication");
       return;
     }
+    await load();
+    setRemoving(false);
+    setRemoveTarget(null);
     toast.success("Two-factor authentication removed");
-    load();
   }
 
   return (
@@ -115,7 +119,10 @@ export default function SettingsPage() {
 
       <EnrollMfaModal open={enrollOpen} onClose={() => setEnrollOpen(false)} onEnrolled={load} />
 
-      <AlertDialog open={!!removeTarget} onOpenChange={(next) => !next && setRemoveTarget(null)}>
+      <AlertDialog
+        open={!!removeTarget}
+        onOpenChange={(next) => !next && !removing && setRemoveTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove two-factor authentication?</AlertDialogTitle>
@@ -125,8 +132,11 @@ export default function SettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemove}>Remove</AlertDialogAction>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemove} disabled={removing}>
+              {removing && <Loader2Icon className="size-4 animate-spin" />}
+              {removing ? "Removing..." : "Remove"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

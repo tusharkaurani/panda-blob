@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeftIcon, CheckIcon, CopyIcon, PencilIcon, PlusIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  CopyIcon,
+  Loader2Icon,
+  PencilIcon,
+  PlusIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -56,12 +63,18 @@ export default function AppDetailPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [blobsLoading, setBlobsLoading] = useState(true);
+  const [blobsRefreshing, setBlobsRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleteAppOpen, setDeleteAppOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [deleteBlobId, setDeleteBlobId] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [deletingApp, setDeletingApp] = useState(false);
+  const [deletingBlob, setDeletingBlob] = useState(false);
+  const hasLoadedBlobs = useRef(false);
   const limit = 10;
 
   const loadApp = useCallback(async () => {
@@ -74,7 +87,11 @@ export default function AppDetailPage() {
   }, [id]);
 
   const loadBlobs = useCallback(async () => {
-    setBlobsLoading(true);
+    if (hasLoadedBlobs.current) {
+      setBlobsRefreshing(true);
+    } else {
+      setBlobsLoading(true);
+    }
     const params = new URLSearchParams({
       app_id: id,
       page: String(page),
@@ -84,7 +101,9 @@ export default function AppDetailPage() {
     const body = await res.json();
     setBlobs(body.items ?? []);
     setTotal(body.total ?? 0);
+    hasLoadedBlobs.current = true;
     setBlobsLoading(false);
+    setBlobsRefreshing(false);
   }, [id, page]);
 
   useEffect(() => {
@@ -97,25 +116,30 @@ export default function AppDetailPage() {
 
   async function handleToggleActive() {
     if (!app) return;
+    setToggling(true);
     await fetch(`/api/admin/apps/${app.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: !app.is_active }),
     });
     toast.success(app.is_active ? "App disabled" : "App enabled");
-    loadApp();
+    await loadApp();
+    setToggling(false);
   }
 
   async function handleRegenerate() {
     if (!app) return;
+    setRegenerating(true);
     await fetch(`/api/admin/apps/${app.id}/regenerate-key`, { method: "POST" });
     toast.success("Access key regenerated");
+    await loadApp();
+    setRegenerating(false);
     setRegenerateOpen(false);
-    loadApp();
   }
 
   async function handleDeleteApp() {
     if (!app) return;
+    setDeletingApp(true);
     await fetch(`/api/admin/apps/${app.id}`, { method: "DELETE" });
     toast.success(`Deleted "${app.name}"`);
     router.push("/apps");
@@ -123,11 +147,12 @@ export default function AppDetailPage() {
 
   async function handleDeleteBlob() {
     if (!deleteBlobId) return;
+    setDeletingBlob(true);
     await fetch(`/api/admin/blobs/${deleteBlobId}`, { method: "DELETE" });
     toast.success("Blob deleted");
+    await Promise.all([loadBlobs(), loadApp()]);
+    setDeletingBlob(false);
     setDeleteBlobId(null);
-    loadBlobs();
-    loadApp();
   }
 
   function handleCopy() {
@@ -205,7 +230,8 @@ export default function AppDetailPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handleToggleActive}>
+          <Button variant="outline" size="sm" onClick={handleToggleActive} disabled={toggling}>
+            {toggling && <Loader2Icon className="size-3.5 animate-spin" />}
             {app.is_active ? "Disable" : "Enable"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setRegenerateOpen(true)}>
@@ -236,7 +262,7 @@ export default function AppDetailPage() {
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className={blobsRefreshing ? "opacity-60 transition-opacity" : "transition-opacity"}>
               {blobsLoading &&
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
@@ -275,7 +301,11 @@ export default function AppDetailPage() {
                         size="sm"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => setDeleteBlobId(blob.id)}
+                        disabled={deletingBlob && deleteBlobId === blob.id}
                       >
+                        {deletingBlob && deleteBlobId === blob.id && (
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                        )}
                         Delete
                       </Button>
                     </TableCell>
@@ -292,9 +322,8 @@ export default function AppDetailPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         ownerId={app.id}
-        onCreated={() => {
-          loadBlobs();
-          loadApp();
+        onCreated={async () => {
+          await Promise.all([loadBlobs(), loadApp()]);
         }}
       />
 
@@ -306,7 +335,10 @@ export default function AppDetailPage() {
         onRenamed={loadApp}
       />
 
-      <AlertDialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
+      <AlertDialog
+        open={regenerateOpen}
+        onOpenChange={(next) => !regenerating && setRegenerateOpen(next)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Regenerate access key?</AlertDialogTitle>
@@ -315,13 +347,19 @@ export default function AppDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRegenerate}>Regenerate</AlertDialogAction>
+            <AlertDialogCancel disabled={regenerating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating && <Loader2Icon className="size-4 animate-spin" />}
+              {regenerating ? "Regenerating..." : "Regenerate"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteAppOpen} onOpenChange={setDeleteAppOpen}>
+      <AlertDialog
+        open={deleteAppOpen}
+        onOpenChange={(next) => !deletingApp && setDeleteAppOpen(next)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this app?</AlertDialogTitle>
@@ -331,30 +369,37 @@ export default function AppDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletingApp}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteApp}
+              disabled={deletingApp}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Delete
+              {deletingApp && <Loader2Icon className="size-4 animate-spin" />}
+              {deletingApp ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteBlobId !== null} onOpenChange={(next) => !next && setDeleteBlobId(null)}>
+      <AlertDialog
+        open={deleteBlobId !== null}
+        onOpenChange={(next) => !next && !deletingBlob && setDeleteBlobId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this blob?</AlertDialogTitle>
             <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletingBlob}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteBlob}
+              disabled={deletingBlob}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Delete
+              {deletingBlob && <Loader2Icon className="size-4 animate-spin" />}
+              {deletingBlob ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

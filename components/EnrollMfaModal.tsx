@@ -22,7 +22,7 @@ export function EnrollMfaModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onEnrolled: () => void;
+  onEnrolled: () => void | Promise<void>;
 }) {
   const [factorId, setFactorId] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -85,15 +85,15 @@ export function EnrollMfaModal({
       body: JSON.stringify({ factorId, challengeId, code }),
     });
 
-    setVerifying(false);
-
     if (!verifyRes.ok) {
+      setVerifying(false);
       const body = await verifyRes.json().catch(() => ({}));
       setError(body.error ?? "Invalid code");
       return;
     }
 
-    onEnrolled();
+    await onEnrolled();
+    setVerifying(false);
     onClose();
     toast.success("Two-factor authentication enabled");
   }

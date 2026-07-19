@@ -34,7 +34,7 @@ export function CreateBlobModal({
   onClose: () => void;
   /** Fixed owner. When omitted, the modal shows a picker to choose one. */
   ownerId?: string;
-  onCreated: () => void;
+  onCreated: () => void | Promise<void>;
 }) {
   const [text, setText] = useState("{}");
   const [error, setError] = useState<string | null>(null);
@@ -87,17 +87,18 @@ export function CreateBlobModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ app_id: effectiveOwner, data }),
     });
-    setLoading(false);
 
     if (!res.ok) {
+      setLoading(false);
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Failed to create blob");
       return;
     }
 
+    await onCreated();
+    setLoading(false);
     setText("{}");
     setSelectedOwner("");
-    onCreated();
     onClose();
     toast.success("Blob created");
   }

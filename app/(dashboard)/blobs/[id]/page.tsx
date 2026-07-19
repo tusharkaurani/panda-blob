@@ -38,6 +38,7 @@ export default function BlobEditorPage() {
   const [saving, setSaving] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -92,6 +93,7 @@ export default function BlobEditorPage() {
   }
 
   async function handleDelete() {
+    setDeleting(true);
     await fetch(`/api/admin/blobs/${id}`, { method: "DELETE" });
     toast.success("Blob deleted");
     router.push("/blobs");
@@ -190,19 +192,24 @@ export default function BlobEditorPage() {
         </Button>
       </div>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(next) => !next && !deleting && setDeleteOpen(false)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this blob?</AlertDialogTitle>
             <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={deleting}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Delete
+              {deleting && <Loader2Icon className="size-4 animate-spin" />}
+              {deleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
