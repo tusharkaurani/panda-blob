@@ -85,9 +85,9 @@ export default function MfaChallengePage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-sm shadow-lg">
         <form onSubmit={handleSubmit}>
-          <CardHeader className="items-center gap-4 text-center">
+          <CardHeader className="items-center gap-5 pb-2 text-center">
             <Logo size="lg" />
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <CardTitle className="text-2xl font-semibold tracking-tight">
                 Two-factor verification
               </CardTitle>
@@ -96,8 +96,8 @@ export default function MfaChallengePage() {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
+          <CardContent className="space-y-5 pt-2">
+            <div className="space-y-2">
               <Label htmlFor="code">Verification code</Label>
               <Input
                 id="code"
@@ -110,17 +110,22 @@ export default function MfaChallengePage() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                 suppressHydrationWarning
+                className="h-10 text-center text-lg tracking-[0.5em]"
               />
             </div>
 
             {factor === null && (
-              <p className="text-sm text-destructive">
+              <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 No two-factor method is set up on this account. Contact an administrator.
               </p>
             )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
           </CardContent>
-          <CardFooter className="mt-4">
+          <CardFooter className="mt-2">
             <Button type="submit" disabled={loading || !factor || code.length < 6} className="w-full">
               {loading && <Loader2Icon className="size-4 animate-spin" />}
               {loading ? "Verifying..." : "Verify"}
