@@ -30,6 +30,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CreateBlobModal } from "@/components/CreateBlobModal";
 import { RenameAppModal } from "@/components/RenameAppModal";
 import { BlobIdCell } from "@/components/BlobIdCell";
+import { previewJson } from "@/lib/utils";
 
 type AppDetail = {
   id: string;
@@ -259,8 +260,11 @@ export default function AppDetailPage() {
                     <TableCell>
                       <BlobIdCell id={blob.id} ownerAccessKey={app.access_key} />
                     </TableCell>
-                    <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">
-                      {JSON.stringify(blob.data)}
+                    <TableCell
+                      className="max-w-xs truncate font-mono text-xs text-muted-foreground"
+                      title={previewJson(blob.data, 2000)}
+                    >
+                      {previewJson(blob.data)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(blob.updated_at).toLocaleString()}

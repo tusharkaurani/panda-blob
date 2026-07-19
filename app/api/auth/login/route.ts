@@ -26,5 +26,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
-  return NextResponse.json({ success: true });
+  // A verified TOTP factor bumps nextLevel to "aal2"; password alone only
+  // gets the session to "aal1". Tell the client so it can route to the
+  // /login/mfa step-up screen instead of straight into the dashboard.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const mfaRequired = !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+
+  return NextResponse.json({ success: true, mfaRequired });
 }

@@ -42,7 +42,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/apps");
+    const body = await res.json().catch(() => ({}));
+    router.push(body.mfaRequired ? "/login/mfa" : "/apps");
     router.refresh();
   }
 

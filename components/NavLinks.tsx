@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/apps", label: "Apps" },
   { href: "/blobs", label: "Blobs" },
   { href: "/docs", label: "API Docs" },
+  { href: "/settings", label: "Settings" },
 ];
 
 function isActive(pathname: string, href: string) {

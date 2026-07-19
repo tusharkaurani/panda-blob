@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  getAuthenticatorAssuranceLevel: vi.fn(),
   cookieStore: { getAll: vi.fn(() => [{ name: "sb-token", value: "abc" }]) },
   createServerClientCalls: [] as any[],
 }));
@@ -14,16 +15,24 @@ vi.mock("next/headers", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn((url: string, key: string, options: any) => {
     mocks.createServerClientCalls.push({ url, key, options });
-    return { auth: { getUser: mocks.getUser } };
+    return {
+      auth: { getUser: mocks.getUser, mfa: { getAuthenticatorAssuranceLevel: mocks.getAuthenticatorAssuranceLevel } },
+    };
   }),
 }));
 
-import { getSessionUser, requireAdmin, requireAdminSecret } from "./auth";
+import { getSessionUser, hasSatisfiedAal, requireAdmin, requireAdminSecret, requireAuthenticatedAdmin } from "./auth";
 
 const savedEnv = { ...process.env };
 
 beforeEach(() => {
   mocks.getUser.mockReset();
+  mocks.getAuthenticatorAssuranceLevel.mockReset();
+  // Default: no MFA factor enrolled -> nextLevel stays "aal1" -> satisfied.
+  mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal1" },
+    error: null,
+  });
   mocks.cookieStore.getAll.mockClear();
   mocks.createServerClientCalls.length = 0;
 });
@@ -71,6 +80,105 @@ describe("getSessionUser", () => {
     const user = { email: "someone-else@example.com" };
     mocks.getUser.mockResolvedValue({ data: { user } });
     expect(await getSessionUser()).toBeNull();
+  });
+
+  it("returns null when the email matches but the session hasn't stepped up to aal2", async () => {
+    delete process.env.ADMIN_EMAIL;
+    const user = { email: "anyone@example.com" };
+    mocks.getUser.mockResolvedValue({ data: { user } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    expect(await getSessionUser()).toBeNull();
+  });
+
+  it("returns the user when the email matches and the session has stepped up to aal2", async () => {
+    delete process.env.ADMIN_EMAIL;
+    const user = { email: "anyone@example.com" };
+    mocks.getUser.mockResolvedValue({ data: { user } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    expect(await getSessionUser()).toEqual(user);
+  });
+
+  it("does not ask Supabase for AAL when the email doesn't match (short-circuits before hasSatisfiedAal)", async () => {
+    process.env.ADMIN_EMAIL = "admin@example.com";
+    const user = { email: "someone-else@example.com" };
+    mocks.getUser.mockResolvedValue({ data: { user } });
+    await getSessionUser();
+    expect(mocks.getAuthenticatorAssuranceLevel).not.toHaveBeenCalled();
+  });
+});
+
+describe("hasSatisfiedAal", () => {
+  function client() {
+    return { auth: { mfa: { getAuthenticatorAssuranceLevel: mocks.getAuthenticatorAssuranceLevel } } };
+  }
+
+  it("is satisfied when no factor is enrolled (nextLevel stays aal1)", async () => {
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal1" },
+      error: null,
+    });
+    expect(await hasSatisfiedAal(client())).toBe(true);
+  });
+
+  it("is not satisfied when a factor is enrolled but this session hasn't stepped up", async () => {
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    expect(await hasSatisfiedAal(client())).toBe(false);
+  });
+
+  it("is satisfied once the session has stepped up to aal2", async () => {
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    expect(await hasSatisfiedAal(client())).toBe(true);
+  });
+
+  it("fails closed (false) when Supabase returns an error", async () => {
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({ data: null, error: { message: "boom" } });
+    expect(await hasSatisfiedAal(client())).toBe(false);
+  });
+
+  it("fails closed (false) when data is null with no error", async () => {
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({ data: null, error: null });
+    expect(await hasSatisfiedAal(client())).toBe(false);
+  });
+});
+
+describe("requireAuthenticatedAdmin", () => {
+  function client(user: { email?: string | null } | null) {
+    return { auth: { getUser: vi.fn(async () => ({ data: { user } })) } };
+  }
+
+  it("returns {user} when the session's email is admin, regardless of AAL", async () => {
+    const user = { email: "anyone@example.com" };
+    delete process.env.ADMIN_EMAIL;
+    const result = await requireAuthenticatedAdmin(client(user));
+    expect("user" in result && result.user).toEqual(user);
+  });
+
+  it("returns a 401 {error} when there is no session", async () => {
+    const result = await requireAuthenticatedAdmin(client(null));
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.status).toBe(401);
+      expect(await result.error.json()).toEqual({ error: "Unauthorized" });
+    }
+  });
+
+  it("returns a 401 {error} when ADMIN_EMAIL is set and doesn't match", async () => {
+    process.env.ADMIN_EMAIL = "admin@example.com";
+    const result = await requireAuthenticatedAdmin(client({ email: "someone-else@example.com" }));
+    expect("error" in result).toBe(true);
+    if ("error" in result) expect(result.error.status).toBe(401);
   });
 });
 

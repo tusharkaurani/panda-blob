@@ -17,6 +17,7 @@ import {
 import { Pagination } from "@/components/ui/Pagination";
 import { CreateBlobModal } from "@/components/CreateBlobModal";
 import { BlobIdCell } from "@/components/BlobIdCell";
+import { previewJson } from "@/lib/utils";
 
 type BlobRow = {
   id: string;
@@ -116,8 +117,11 @@ export default function BlobsPage() {
                       {blob.app_name ?? blob.app_id}
                     </Link>
                   </TableCell>
-                  <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">
-                    {JSON.stringify(blob.data)}
+                  <TableCell
+                    className="max-w-xs truncate font-mono text-xs text-muted-foreground"
+                    title={previewJson(blob.data, 2000)}
+                  >
+                    {previewJson(blob.data)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(blob.updated_at).toLocaleString()}

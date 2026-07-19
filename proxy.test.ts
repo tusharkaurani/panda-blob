@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const mocks = vi.hoisted(() => ({ getUser: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getUser: vi.fn(), getAuthenticatorAssuranceLevel: vi.fn() }));
 
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: vi.fn(() => ({ auth: { getUser: mocks.getUser } })),
+  createServerClient: vi.fn(() => ({
+    auth: { getUser: mocks.getUser, mfa: { getAuthenticatorAssuranceLevel: mocks.getAuthenticatorAssuranceLevel } },
+  })),
 }));
 
 import { proxy } from "./proxy";
@@ -17,6 +19,12 @@ function req(path: string) {
 
 beforeEach(() => {
   mocks.getUser.mockReset();
+  mocks.getAuthenticatorAssuranceLevel.mockReset();
+  // Default: no MFA factor enrolled -> nextLevel stays "aal1" -> satisfied.
+  mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal1" },
+    error: null,
+  });
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "publishable-key";
 });
@@ -86,5 +94,91 @@ describe("proxy middleware", () => {
     const res = await proxy(req("/blobsx"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("does not call getAuthenticatorAssuranceLevel when there is no session (short-circuits on emailMatches)", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    await proxy(req("/apps"));
+    expect(mocks.getAuthenticatorAssuranceLevel).not.toHaveBeenCalled();
+  });
+
+  it("redirects a protected page to /login/mfa when the password step succeeded but AAL2 isn't satisfied", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/apps"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login/mfa");
+  });
+
+  it("returns 401 JSON (not a redirect) for a protected admin API route needing a step-up", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/api/admin/apps"));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  it("passes through a protected page once the session has stepped up to aal2", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/apps"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("redirects /login -> /login/mfa when the password step succeeded but AAL2 isn't satisfied", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/login"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login/mfa");
+  });
+
+  it("redirects /login/mfa -> /apps when already fully authenticated (aal2)", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/login/mfa"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/apps");
+  });
+
+  it("passes through /login/mfa when a step-up is actually pending", async () => {
+    delete process.env.ADMIN_EMAIL;
+    mocks.getUser.mockResolvedValue({ data: { user: { email: "anyone@example.com" } } });
+    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    const res = await proxy(req("/login/mfa"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("redirects /login/mfa -> /login when there is no password-authenticated session at all", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    const res = await proxy(req("/login/mfa"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).not.toContain("/login/mfa");
   });
 });
