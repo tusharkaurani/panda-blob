@@ -26,7 +26,13 @@ export async function POST() {
     await supabase.auth.mfa.unenroll({ factorId: factor.id });
   }
 
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+  // Without an explicit issuer, Supabase falls back to the GoTrue site URL
+  // (e.g. "localhost:3000"), so authenticator apps show a confusing/incorrect
+  // label instead of the app name. Pin it explicitly.
+  const { data, error } = await supabase.auth.mfa.enroll({
+    factorType: "totp",
+    issuer: "pandablob",
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

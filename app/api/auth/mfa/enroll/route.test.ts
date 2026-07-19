@@ -57,7 +57,7 @@ describe("POST /api/auth/mfa/enroll", () => {
       qrCode: "data:image/svg+xml,...",
       secret: "SECRET123",
     });
-    expect(mocks.enroll).toHaveBeenCalledWith({ factorType: "totp" });
+    expect(mocks.enroll).toHaveBeenCalledWith({ factorType: "totp", issuer: "pandablob" });
   });
 
   it("unenrolls stale unverified factors before enrolling a new one", async () => {
