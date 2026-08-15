@@ -46,7 +46,7 @@ Both tables (`apps`, `blobs`) have RLS enabled with **no policies** (default-den
    npm install
    ```
 
-2. **Create a Supabase project** at [supabase.com](https://supabase.com). Note its **project ref** — the subdomain of the project URL (e.g. `rjuccjrvcewaxottaurq` in `https://rjuccjrvcewaxottaurq.supabase.co`).
+2. **Create a Supabase project** at [supabase.com](https://supabase.com). Note its **project ref** — the subdomain of the project URL (e.g. `abcdefghijklmnop` in `https://abcdefghijklmnop.supabase.co`).
 
 3. **Apply the database migration** with the Supabase CLI. This repo is already a Supabase CLI project (`supabase/config.toml` + `supabase/migrations/`):
    ```
