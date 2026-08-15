@@ -1,117 +1,168 @@
-# pandablob
+# panda-blob
 
-A [jsonblob.com](https://jsonblob.com)-style JSON storage service: a public CRUD API that other projects call programmatically, plus an admin dashboard to manage it all. Built on Next.js (App Router) + Supabase, deployed on Vercel.
+A self-hosted JSON storage service in the spirit of [jsonblob.com](https://jsonblob.com): a small public CRUD API that your other projects call programmatically, plus an admin dashboard to issue keys and browse the data.
 
-## The model
+Built with Next.js (App Router), Supabase, and TypeScript. Runs on Vercel or as a Docker container.
 
-There are three concepts:
+- **Public API** — create, read, replace, and delete JSON documents with a single API key.
+- **Admin dashboard** — manage API consumers, rotate keys, and edit blobs in a JSON editor.
+- **Single-admin by design** — Supabase Auth with optional TOTP two-factor; no self-serve signup.
+- **Defense in depth** — default-deny row-level security, server-only secrets, constant-time secret comparison.
 
-- **Apps** — API consumer accounts (e.g. `project-foo`), one per project/service that stores blobs. Created *only* from the admin dashboard; there is no self-serve signup. Each App has an auto-generated **access key**.
-- **Blobs** — arbitrary JSON documents. Every blob belongs to exactly one App.
-- **Admin** — you. Logs into the dashboard to create Apps, hand out access keys, and browse/edit blobs.
+## Concepts
 
-So there are two completely separate kinds of "auth" in this app, described next.
+| Concept | What it is |
+|---|---|
+| **App** | An API consumer account (e.g. `project-foo`), one per project that stores blobs. Each App owns an auto-generated access key. Apps are created only from the dashboard. |
+| **Blob** | An arbitrary JSON document. Every blob belongs to exactly one App. |
+| **Admin** | You. Signs into the dashboard to create Apps, hand out keys, and manage blobs. |
 
-## Authentication
+An App's key can only reach that App's blobs, so projects sharing one deployment stay isolated from each other.
 
-### 1. Public API — per-App access keys
+## Quick start
 
-Every call to the public blob API must carry an App's access key as a query param (`?apiKey=<key>`). The key identifies the owning App, and a blob can only be read or written with *its own owner's* key. No key, wrong key, or a disabled App's key → rejected. Keys are created, viewed, and regenerated from the admin dashboard.
+### Docker
 
-Keys are stored in plaintext in the database (the admin needs to view them persistently, which rules out hashing). They're safe because they're high-entropy (`pb_` + 32 random bytes) and the table holding them is never exposed to the browser — only server-side code using the secret key touches it.
+Images are published to both Docker Hub and GHCR on every push to `main`, for `linux/amd64` and `linux/arm64`.
 
-### 2. Admin dashboard — Supabase Auth
+```bash
+docker run -d --name panda-blob -p 3000:3000 \
+  -e NEXT_PUBLIC_SUPABASE_URL="https://<ref>.supabase.co" \
+  -e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="<publishable-key>" \
+  -e SUPABASE_SECRET_KEY="<secret-key>" \
+  -e ADMIN_EMAIL="you@example.com" \
+  dockerpanda1206/panda-blob:latest
+```
 
-The dashboard is gated by **Supabase Auth**. We don't build any login logic ourselves — Supabase hosts the user store, hashes passwords, and issues session tokens. Our app just:
+```bash
+# or from GitHub Container Registry
+docker run -d -p 3000:3000 --env-file .env.local ghcr.io/tusharkaurani/panda-blob:latest
+```
 
-- posts credentials to a server-side route (`/api/auth/login` → `supabase.auth.signInWithPassword`), so **no Supabase key ever ships in the browser bundle**;
-- checks the resulting session cookie in [`proxy.ts`](proxy.ts) on every `/(dashboard)` and `/api/admin/*` request, redirecting to `/login` when it's missing.
+Tags: `latest` and the commit SHA. The image contains no secrets — every variable is read at request time, so all configuration is supplied at `docker run`.
 
-**There is exactly one admin account, and you create it by hand** (Setup step 4) — the app has no signup page.
+You still need a Supabase project behind it; see [Setup](#setup).
 
-> **Important — locking it down.** The app has no signup page, but Supabase Auth's signup *endpoint* lives on your project domain and is reachable directly (`POST https://<ref>.supabase.co/auth/v1/signup`), independent of our UI. And `proxy.ts` treats *any* valid Supabase session as the admin. So without the two locks below, a stranger could self-register against that raw endpoint and walk into your dashboard:
-> 1. **Disable public signups** in the Supabase dashboard (Authentication → Sign In / Providers) — closes the endpoint so no new accounts can be minted.
-> 2. **Set `ADMIN_EMAIL`** (env var) to your admin's exact email — even if an account is somehow created, only that email passes the admin check.
->
-> Do both.
+### From source
 
-### Row-Level Security
+```bash
+npm install
+cp .env.example .env.local   # fill in the values from Setup
+npm run dev
+```
 
-Both tables (`apps`, `blobs`) have RLS enabled with **no policies** (default-deny). All app access goes through the server-side client using the **secret key**, which bypasses RLS by design. RLS is a backstop: if the publishable key were ever pointed at these tables, it gets zero rows.
+Visit `http://localhost:3000`, which redirects to the dashboard (and to `/login` until you sign in).
 
 ## Setup
 
-1. **Install dependencies**
-   ```
-   npm install
-   ```
+**1. Create a Supabase project** at [supabase.com](https://supabase.com). Note the **project ref** — the subdomain of your project URL (`abcdefghijklmnop` in `https://abcdefghijklmnop.supabase.co`).
 
-2. **Create a Supabase project** at [supabase.com](https://supabase.com). Note its **project ref** — the subdomain of the project URL (e.g. `abcdefghijklmnop` in `https://abcdefghijklmnop.supabase.co`).
+**2. Apply the database migration.** This repo is already a Supabase CLI project (`supabase/config.toml` + `supabase/migrations/`):
 
-3. **Apply the database migration** with the Supabase CLI. This repo is already a Supabase CLI project (`supabase/config.toml` + `supabase/migrations/`):
-   ```
-   npx supabase login                                 # opens your browser to authorize
-   npx supabase link --project-ref <your-project-ref> # prompts for your DB password
-   npx supabase db push                               # runs supabase/migrations/*.sql
-   ```
-   The DB password is under Project Settings → Database (reset it there if you don't have it — it's separate from the API keys in step 5). For future schema changes, add a new file under `supabase/migrations/` and re-run `npx supabase db push`.
+```bash
+npx supabase login                                  # authorize in your browser
+npx supabase link --project-ref <your-project-ref>  # prompts for your DB password
+npx supabase db push                                # runs supabase/migrations/*.sql
+```
 
-   > Supabase's dashboard **GitHub integration** is for PR preview branches, *not* automatic production migrations — connecting it does **not** run these migrations on push to `main`. `supabase db push` is the mechanism this project relies on.
+The DB password lives under Project Settings → Database and is separate from your API keys. For later schema changes, add a file to `supabase/migrations/` and re-run `db push`.
 
-4. **Create your admin account** (see [Authentication](#2-admin-dashboard--supabase-auth) above for why this is manual):
-   - Authentication → Users → **Add user** → set your email and password, and check **Auto Confirm User**.
-   - Authentication → Sign In / Providers → **turn off public signups**.
+> Supabase's GitHub integration creates PR preview branches — it does **not** run migrations on push to `main`. `supabase db push` is the mechanism this project relies on.
 
-5. **Configure environment variables.** Copy `.env.example` to `.env.local` and fill it in. The first three come from Project Settings → API in the Supabase dashboard:
+**3. Create your admin account.** The app has no signup page, so add the user by hand:
 
-   | Variable | What | Exposure |
-   |---|---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL | used server- and client-side |
-   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key | browser-safe (not actually shipped to the client here, but Supabase's auth endpoint expects it) |
-   | `SUPABASE_SECRET_KEY` | Secret key — bypasses RLS | **server-only, never expose** |
-   | `ADMIN_EMAIL` | Your admin email (from step 4) | server-only; strongly recommended (see lock #2 above) |
+- Authentication → Users → **Add user** — set your email and password, and check **Auto Confirm User**.
+- Authentication → Sign In / Providers → **turn off public signups**.
 
-   The publishable and secret keys are deliberately separate credentials at different privilege levels — they can't be collapsed into one.
+**4. Configure environment variables.** Copy `.env.example` to `.env.local` and fill it in. The first three are on Project Settings → API in the Supabase dashboard.
 
-6. **Run locally**
-   ```
-   npm run dev
-   ```
-   Visit `http://localhost:3000`. It redirects to `/apps`, which redirects to `/login` until you sign in with the admin account from step 4.
+| Variable | Purpose | Exposure |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL | Server and client |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key, used by Supabase's auth endpoint | Browser-safe |
+| `SUPABASE_SECRET_KEY` | Secret key; bypasses RLS | **Server only — never expose** |
+| `ADMIN_EMAIL` | The one email allowed into the dashboard | Server only; strongly recommended |
+| `ADMIN_API_SECRET` | Shared secret for `GET /api/stats`. Unset disables the route. | Server only; optional |
+
+The publishable and secret keys are separate credentials at different privilege levels and cannot be collapsed into one. Generate `ADMIN_API_SECRET` with `openssl rand -hex 32`.
+
+> **Lock down your Supabase project.** Supabase Auth's signup *endpoint* is reachable on your project domain (`POST https://<ref>.supabase.co/auth/v1/signup`) whether or not your UI offers signup. Do both of the following: **disable public signups** (step 3) so no account can be minted, and **set `ADMIN_EMAIL`** so that even if one is, only your address passes the admin check.
 
 ## Public API
 
-Base path `/api/blob`. Every request needs the owning App's access key as an `apiKey` query param.
+Base path `/api/blob`. Every request carries the owning App's access key as an `apiKey` query parameter.
 
 | Method | Path | Behavior |
 |---|---|---|
-| `POST` | `/api/blob?apiKey=<key>` | Create a blob. Body = any JSON. Returns `201` + a `Location` header + the created JSON. |
-| `GET` | `/api/blob/{id}?apiKey=<key>` | Fetch a blob's raw JSON. |
-| `PUT` | `/api/blob/{id}?apiKey=<key>` | Full replace of a blob's JSON. |
-| `DELETE` | `/api/blob/{id}?apiKey=<key>` | Delete a blob. |
+| `POST` | `/api/blob?apiKey=<key>` | Create a blob from the JSON body. Returns `201` with a `Location` header and the stored JSON. |
+| `GET` | `/api/blob/{id}?apiKey=<key>` | Return the blob's raw JSON. |
+| `PUT` | `/api/blob/{id}?apiKey=<key>` | Replace the blob's JSON entirely. |
+| `DELETE` | `/api/blob/{id}?apiKey=<key>` | Delete the blob. Returns `204`. |
 
-Errors: `401` for a missing / invalid / disabled key, `404` for a blob that doesn't exist *or* belongs to a different App (indistinguishable on purpose), `400` for malformed JSON or an invalid blob id.
+```bash
+curl -X POST "https://your-deployment.example.com/api/blob?apiKey=$KEY" -d '{"hello":"world"}'
+curl "https://your-deployment.example.com/api/blob/$ID?apiKey=$KEY"
+curl -X PUT "https://your-deployment.example.com/api/blob/$ID?apiKey=$KEY" -d '{"hello":"updated"}'
+curl -X DELETE "https://your-deployment.example.com/api/blob/$ID?apiKey=$KEY"
+```
 
-```
-curl -X POST "https://your-deployment.vercel.app/api/blob?apiKey=<key>" -d '{"hello":"world"}'
-curl "https://your-deployment.vercel.app/api/blob/<id>?apiKey=<key>"
-curl -X PUT "https://your-deployment.vercel.app/api/blob/<id>?apiKey=<key>" -d '{"hello":"updated"}'
-curl -X DELETE "https://your-deployment.vercel.app/api/blob/<id>?apiKey=<key>"
-```
+| Status | Meaning |
+|---|---|
+| `400` | Malformed JSON body, or a blob id that isn't a UUID |
+| `401` | Missing, invalid, or disabled API key |
+| `404` | Blob does not exist, or belongs to another App (deliberately indistinguishable) |
+| `413` | Body larger than 3 MB |
+
+### Stats endpoint
+
+`GET /api/stats?secret=<ADMIN_API_SECRET>` returns aggregate counts — `{ "totalApps": n, "totalBlobs": n }` — for external consumers such as a status widget that can't hold a browser session. It exposes no App or blob content. The secret is compared in constant time, and the route returns `503` when `ADMIN_API_SECRET` is unset.
 
 ## Admin dashboard
 
-- `/apps` — list, search, and create Apps; copy / regenerate / disable / delete access keys.
-- `/apps/[id]` — an App's details and its blobs; create blobs on its behalf.
-- `/blobs` — every blob across all Apps, searchable by blob id or owner name.
-- `/blobs/[id]` — edit or delete a single blob's JSON.
+| Route | Purpose |
+|---|---|
+| `/apps` | List, search, and create Apps; copy, regenerate, disable, or delete access keys |
+| `/apps/[id]` | An App's details and blobs; create blobs on its behalf |
+| `/blobs` | Every blob across all Apps, searchable by id or owner |
+| `/blobs/[id]` | Edit or delete a blob's JSON |
+| `/docs` | The public API reference, with your deployment's base URL filled in |
+| `/settings` | Enroll or remove an authenticator app for two-factor sign-in |
 
-All lists paginate at 10 rows per page.
+Lists paginate at 10 rows per page.
 
-## Deploying to Vercel
+## Security model
 
-Set the same variables from Setup step 5 in the Vercel project settings (Settings → Environment Variables), then push to the connected Git branch (or `vercel deploy`). Next.js is auto-detected — no `vercel.json` needed.
+**Two independent kinds of auth.** The public API authenticates *Apps* by access key. The dashboard authenticates *you* through Supabase Auth. They share no code paths.
 
-Also confirm your Supabase Auth **redirect / site URLs** (Authentication → URL Configuration) include the deployed domain.
+**Access keys** are `pb_` plus 32 random bytes and stored in plaintext, because the dashboard must display them after creation. They stay safe because the `apps` table is never reachable from the browser — only server-side code holding the secret key queries it.
 
-Database migrations are **not** tied to the Vercel deploy. When a change adds a file under `supabase/migrations/`, apply it with `npx supabase db push` (Setup step 3) before or alongside the deploy that needs it.
+**Dashboard sessions** are issued by Supabase Auth: it hosts the user store, hashes passwords, and mints tokens. Credentials are posted to a server-side route (`/api/auth/login`), so no Supabase key ships in the browser bundle. `proxy.ts` checks the session cookie on every dashboard and `/api/admin/*` request, and each admin route handler re-checks independently rather than trusting the middleware alone.
+
+**Two-factor authentication** is optional and TOTP-based. Once a factor is verified, a session that hasn't stepped up to `aal2` is redirected to `/login/mfa` and treated as unauthenticated everywhere else. AAL checks fail closed.
+
+**Row-level security** is enabled on both tables with no policies at all (default-deny). Application access goes through the secret key, which bypasses RLS by design; RLS is the backstop that returns zero rows if the publishable key is ever pointed at these tables.
+
+## Deployment
+
+### Vercel
+
+Set the same variables from Setup step 4 under Settings → Environment Variables, then push to the connected branch (or run `vercel deploy`). Next.js is auto-detected — no `vercel.json` needed. Add your deployed domain to Supabase's Authentication → URL Configuration.
+
+### Docker
+
+`Dockerfile` produces a multi-stage standalone build that runs as a non-root user on port 3000. `.github/workflows/docker-publish.yml` builds and pushes multi-arch images to Docker Hub and GHCR on every push to `main`, and syncs this README to the Docker Hub description.
+
+Migrations are **not** part of any deploy. When a change adds a file under `supabase/migrations/`, apply it with `npx supabase db push` before or alongside the deploy that needs it.
+
+## Development
+
+```bash
+npm run dev            # start the dev server
+npm run build          # production build
+npm test               # run the test suite (Vitest)
+npm run test:watch     # watch mode
+npm run test:coverage  # coverage report to coverage/
+npm run lint           # lint
+```
+
+Requires Node.js 20.9 or newer. Tests run on every push and pull request against `main` via `.github/workflows/test.yml`.
